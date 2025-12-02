@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#4f46e5">
     <meta name="description" content="تبدیل متن به صوت حرفه‌ای با هوش مصنوعی جمینی">
-    <title>جمینی Voice Pro</title>
+    <title>جمینی Voice Studio</title>
     <link rel="manifest" href="manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -14,8 +14,8 @@
             theme: {
                 extend: {
                     colors: { dark: { bg: '#0f172a', card: '#1e293b', input: '#334155', text: '#f1f5f9' } },
-                    animation: { 'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite', 'bounce-x': 'bounceX 1s infinite' },
-                    keyframes: { bounceX: { '0%, 100%': { transform: 'translateX(-25%)' }, '50%': { transform: 'translateX(0)' } } }
+                    animation: { 'fade-in': 'fadeIn 0.3s ease-out' },
+                    keyframes: { fadeIn: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } } }
                 }
             }
         }
@@ -32,8 +32,15 @@
         .custom-scroll::-webkit-scrollbar-track { background: transparent; }
         .custom-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
         .dark .custom-scroll::-webkit-scrollbar-thumb { background-color: #475569; }
-        .hide-scroll::-webkit-scrollbar { display: none; }
-        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        input[type=range] { -webkit-appearance: none; background: transparent; cursor: pointer; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 14px; width: 14px; border-radius: 50%; background: #6366f1; margin-top: -5px; box-shadow: 0 0 5px rgba(0,0,0,0.2); transition: transform 0.1s; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; }
+        .dark input[type=range]::-webkit-slider-runnable-track { background: #475569; }
+
+        /* Accordion transition */
+        .accordion-content { transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out; max-height: 0; opacity: 0; overflow: hidden; }
+        .accordion-content.open { max-height: 400px; opacity: 1; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center p-0 md:p-4 bg-gray-50 dark:bg-dark-bg transition-colors duration-300">
@@ -44,8 +51,10 @@
         <div class="bg-white/80 dark:bg-dark-card/90 backdrop-blur-md p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center z-20 shrink-0 sticky top-0">
             <div>
                 <h1 class="text-lg font-black text-gray-800 dark:text-white flex items-center gap-2">
-                    <i class="fa-solid fa-wave-square text-indigo-500"></i>
-                    جمینی <span class="gradient-text">Voice Pro</span>
+                    <div class="bg-indigo-100 dark:bg-indigo-900/30 p-1.5 rounded-lg text-indigo-600">
+                        <i class="fa-solid fa-microphone-lines"></i>
+                    </div>
+                    جمینی <span class="gradient-text">Voice Studio</span>
                 </h1>
             </div>
             <div class="flex items-center gap-2">
@@ -60,52 +69,61 @@
         </div>
 
         <!-- Content -->
-        <div class="flex-1 overflow-y-auto p-5 space-y-6 custom-scroll pb-24">
+        <div class="flex-1 overflow-y-auto p-5 space-y-6 custom-scroll pb-32">
             
+            <!-- Mode Switcher -->
+            <div class="bg-gray-50 dark:bg-dark-input p-1 rounded-xl flex relative">
+                <div id="modeIndicator" class="absolute top-1 bottom-1 w-[48%] bg-white dark:bg-gray-600 rounded-lg shadow-sm transition-all duration-300 right-1"></div>
+                <button onclick="setMode('single')" class="flex-1 py-2 text-xs font-bold text-center z-10 transition-colors duration-300 flex items-center justify-center gap-2 relative" id="modeBtn-single">
+                    <i class="fa-solid fa-user"></i> تک‌گوینده
+                </button>
+                <button onclick="setMode('multi')" class="flex-1 py-2 text-xs font-bold text-center z-10 transition-colors duration-300 flex items-center justify-center gap-2 relative" id="modeBtn-multi">
+                    <i class="fa-solid fa-users-rays"></i> چند گوینده (مکالمه)
+                </button>
+            </div>
+
+            <!-- Voice Selection (Only visible in Single Mode) -->
+            <div id="singleVoiceContainer" class="space-y-2 transition-all duration-300">
+                <label class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-1">
+                    <i class="fa-solid fa-microphone text-indigo-500"></i> گوینده پیش‌فرض
+                </label>
+                <button type="button" onclick="toggleVoiceList()" class="w-full bg-white dark:bg-dark-input border border-gray-200 dark:border-gray-600 p-3 rounded-xl flex justify-between items-center transition hover:border-indigo-400 group">
+                    <div class="flex items-center gap-3">
+                        <div class="flex flex-col items-start">
+                            <span id="selectedVoiceName" class="text-sm font-bold text-gray-700 dark:text-gray-200 font-mono">Kore</span>
+                            <span class="text-[10px] text-gray-400" id="selectedVoiceDesc">پیشنهادی، شفاف</span>
+                        </div>
+                    </div>
+                    <i id="voiceArrow" class="fa-solid fa-chevron-down text-gray-400 transition-transform"></i>
+                </button>
+                <div id="voiceListContainer" class="accordion-content bg-gray-50 dark:bg-dark-input border-x border-b border-gray-200 dark:border-gray-600 rounded-b-xl -mt-1 z-10 relative">
+                    <div class="p-2 overflow-y-auto custom-scroll max-h-[250px] space-y-1.5" id="voiceListInner"></div>
+                </div>
+                <input type="hidden" id="voiceSelect" value="Kore">
+            </div>
+
+            <div id="multiInfo" class="hidden p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl text-xs text-indigo-700 dark:text-indigo-300 flex items-start gap-2">
+                <i class="fa-solid fa-info-circle mt-0.5"></i>
+                <p>در حالت چند گوینده، می‌توانید در مرحله بعد برای هر بخش، گوینده متفاوتی انتخاب کنید.</p>
+            </div>
+
             <!-- Tone Section -->
             <div class="space-y-3 relative group">
                 <div class="flex justify-between items-end">
                     <label class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-1">
                         <i class="fa-solid fa-masks-theater text-pink-500"></i> لحن و سبک
                     </label>
-                    <span class="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">دستور کوتاه (انگلیسی) بهتر است</span>
                 </div>
-                
                 <div class="flex gap-2 relative">
                     <input type="text" id="toneInput" placeholder="مثلاً: Sad, Slow..." 
                         class="flex-1 p-3 bg-gray-50 dark:bg-dark-input dark:text-white rounded-xl border border-gray-200 dark:border-gray-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-900 outline-none transition text-sm font-mono dir-ltr placeholder:font-sans placeholder:dir-rtl text-left">
-                    
-                    <button onclick="enhanceTone()" id="enhanceBtn" class="bg-indigo-500 text-white w-12 rounded-xl shadow-lg shadow-indigo-500/30 hover:bg-indigo-600 active:scale-95 transition flex items-center justify-center" title="بهینه‌سازی دستور لحن برای هوش مصنوعی">
+                    <button onclick="enhanceTone()" id="enhanceBtn" class="bg-indigo-500 text-white w-12 rounded-xl shadow-lg shadow-indigo-500/30 hover:bg-indigo-600 active:scale-95 transition flex items-center justify-center" title="بهینه‌سازی دستور لحن">
                         <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
                         <div id="enhanceLoader" class="loader hidden"></div>
                     </button>
                 </div>
-
-                <!-- Tone Presets -->
                 <div class="relative">
                     <div class="flex gap-2 overflow-x-auto pb-2 pt-1 hide-scroll relative z-10 snap-x" id="tonePresets"></div>
-                    <div class="absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-white dark:from-dark-card to-transparent pointer-events-none z-20"></div>
-                    <div class="absolute left-0 top-0 bottom-2 w-8 bg-gradient-to-r from-white dark:from-dark-card to-transparent pointer-events-none z-20"></div>
-                    <div class="text-[9px] text-gray-400 text-center mt-1 flex items-center justify-center gap-2 opacity-70">
-                        <i class="fa-solid fa-chevron-right text-[8px] animate-bounce-x"></i>
-                        اسکرول کنید
-                        <i class="fa-solid fa-chevron-left text-[8px] animate-bounce-x"></i>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Voice Selection -->
-            <div class="space-y-2">
-                <label class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-1">
-                    <i class="fa-solid fa-microphone-lines text-indigo-500"></i> گوینده (۳۰+ مدل)
-                </label>
-                <div class="relative">
-                    <select id="voiceSelect" class="w-full p-3 pl-10 bg-gray-50 dark:bg-dark-input dark:text-white rounded-xl border border-gray-200 dark:border-gray-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-900 outline-none appearance-none transition text-sm">
-                        <!-- Voices JS -->
-                    </select>
-                    <div class="absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-400">
-                        <i class="fa-solid fa-chevron-down text-xs"></i>
-                    </div>
                 </div>
             </div>
 
@@ -115,13 +133,17 @@
                     <label class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-1">
                         <i class="fa-solid fa-align-right text-green-500"></i> متن ورودی
                     </label>
-                    <button onclick="autoDiacritics()" id="diacriticBtn" class="text-[10px] bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-2.5 py-1 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 transition flex items-center gap-1.5 border border-green-200 dark:border-green-800">
-                        <i class="fa-solid fa-spell-check"></i>
-                        <span>اصلاح اعراب</span>
-                        <div id="diacriticLoader" class="loader loader-dark !border-green-500 !border-t-transparent w-3 h-3 border-2 hidden"></div>
-                    </button>
+                    <div class="flex gap-2">
+                         <span id="charCount" class="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-md">0 کاراکتر | 0 کلمه</span>
+                        <button onclick="autoDiacritics()" id="diacriticBtn" class="text-[10px] bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-2.5 py-1 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 transition flex items-center gap-1.5 border border-green-200 dark:border-green-800">
+                            <i class="fa-solid fa-spell-check"></i>
+                            <span>اصلاح اعراب</span>
+                            <div id="diacriticLoader" class="loader loader-dark !border-green-500 !border-t-transparent w-3 h-3 border-2 hidden"></div>
+                        </button>
+                    </div>
                 </div>
-                <textarea id="textInput" rows="5" placeholder="متن خود را اینجا بنویسید..." 
+                
+                <textarea id="textInput" rows="5" oninput="updateCounts()" placeholder="متن خود را اینجا بنویسید..." 
                     class="w-full p-4 bg-gray-50 dark:bg-dark-input dark:text-white rounded-xl border border-gray-200 dark:border-gray-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-900 outline-none transition resize-none text-base leading-relaxed text-right font-medium" dir="auto"></textarea>
             </div>
 
@@ -131,67 +153,70 @@
             <div>
                 <div class="flex justify-between items-center mb-3">
                     <label class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-1">
-                        <i class="fa-solid fa-clock-rotate-left text-orange-500"></i> تاریخچه
+                        <i class="fa-solid fa-clock-rotate-left text-orange-500"></i> استودیو (پروژه‌های اخیر)
                     </label>
                     <button onclick="clearHistory()" class="text-xs text-red-400 hover:text-red-600 transition bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded-lg">
                         <i class="fa-solid fa-trash-can"></i> حذف همه
                     </button>
                 </div>
-                <div id="historyList" class="space-y-3 pb-4"></div>
+                <div id="historyList" class="space-y-4 pb-4"></div>
             </div>
 
         </div>
 
         <!-- Action Bar -->
-        <div class="p-4 bg-white/80 dark:bg-dark-card/90 backdrop-blur-md border-t border-gray-100 dark:border-gray-700 shrink-0 z-20">
-            <button id="generateBtn" onclick="generateAudio()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-500/30 dark:shadow-none active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-lg group">
-                <span id="btnText">تولید صدا</span>
-                <span id="btnIcon" class="group-hover:translate-x-1 transition-transform"><i class="fa-solid fa-play"></i></span>
-                <div id="btnLoader" class="loader hidden"></div>
+        <div class="p-4 bg-white/80 dark:bg-dark-card/90 backdrop-blur-md border-t border-gray-100 dark:border-gray-700 shrink-0 z-20 sticky bottom-0">
+            <button id="prepareBtn" onclick="prepareGeneration()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-500/30 dark:shadow-none active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-lg group">
+                <span id="btnText">بررسی و مدیریت بخش‌ها</span>
+                <span id="btnIcon" class="group-hover:translate-x-1 transition-transform"><i class="fa-solid fa-layer-group"></i></span>
             </button>
         </div>
 
     </div>
 
-    <!-- Settings Modal (FIXED) -->
+    <!-- Chunk Editor Modal -->
+    <div id="chunkModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center transition-opacity opacity-0 px-2 md:px-4">
+        <div class="bg-white dark:bg-dark-card w-full max-w-lg h-[90vh] rounded-2xl p-0 shadow-2xl transform scale-95 transition-transform border border-gray-100 dark:border-gray-700 flex flex-col overflow-hidden">
+            <div class="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-dark-input flex justify-between items-center shrink-0">
+                <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-indigo-500"></i>
+                    تنظیمات نهایی
+                </h3>
+                <button onclick="closeChunkModal()" class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300 flex items-center justify-center hover:bg-red-100 hover:text-red-500 transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="p-4 bg-white dark:bg-dark-card border-b border-gray-100 dark:border-gray-700 shrink-0">
+                <div class="flex flex-col gap-3">
+                    <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+                        <span>تعداد بخش‌ها: <b id="chunkCountDisplay" class="text-indigo-600 text-sm">Auto</b></span>
+                        <input type="range" id="chunkSlider" min="1" max="20" value="1" class="w-40" oninput="updateChunkingFromSlider(this.value)">
+                    </div>
+                </div>
+            </div>
+            <div id="chunksContainer" class="flex-1 overflow-y-auto p-4 space-y-4 custom-scroll bg-gray-100 dark:bg-black/20"></div>
+            <div class="p-4 bg-white dark:bg-dark-card border-t border-gray-100 dark:border-gray-700 shrink-0 flex gap-3">
+                <button onclick="startJobInUI()" class="flex-1 bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-500/20 active:scale-95 transition flex items-center justify-center gap-2">
+                    <span>شروع پردازش</span>
+                    <i class="fa-solid fa-check-double"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
     <div id="settingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center transition-opacity opacity-0 px-4">
         <div class="bg-white dark:bg-dark-card w-full max-w-sm rounded-2xl p-6 shadow-2xl transform scale-95 transition-transform border border-gray-100 dark:border-gray-700 flex flex-col max-h-[85vh]" id="settingsContent">
-            
-            <!-- Header -->
             <div class="flex justify-between items-center mb-4 shrink-0">
                 <h2 class="text-lg font-bold text-gray-800 dark:text-white">تنظیمات API</h2>
                 <button onclick="toggleSettings()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                     <i class="fa-solid fa-xmark text-xl"></i>
                 </button>
             </div>
-            
-            <!-- Help Box (Restored) -->
-            <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800 mb-4 shrink-0">
-                <div class="flex items-start gap-2">
-                    <i class="fa-solid fa-circle-info text-blue-500 mt-0.5 text-xs"></i>
-                    <div>
-                        <p class="text-xs text-blue-800 dark:text-blue-200 leading-5">
-                            کلید API شما در مرورگر خودتان ذخیره می‌شود. برای استفاده نامحدود می‌توانید چند کلید وارد کنید.
-                        </p>
-                        <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline mt-1 inline-flex items-center gap-1">
-                            دریافت کلید رایگان از گوگل
-                            <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Key List -->
-            <div class="space-y-2 flex-1 overflow-y-auto custom-scroll pr-1 mb-4 border-t border-b border-gray-100 dark:border-gray-700 py-2" id="keyList">
-                <!-- Keys will be injected here -->
-            </div>
-
-            <!-- Add Key Input -->
+            <div class="space-y-2 flex-1 overflow-y-auto custom-scroll pr-1 mb-4 border-t border-b border-gray-100 dark:border-gray-700 py-2" id="keyList"></div>
             <div class="flex gap-2 shrink-0">
                 <input type="text" id="newApiKey" placeholder="کلید جدید..." class="flex-1 p-3 border dark:border-gray-600 dark:bg-dark-input dark:text-white rounded-lg text-sm bg-gray-50 ltr text-left font-mono">
-                <button onclick="addApiKey()" class="bg-indigo-600 text-white px-4 rounded-lg hover:bg-indigo-700 transition shadow-md shadow-indigo-500/20">
-                    <i class="fa-solid fa-plus"></i>
-                </button>
+                <button onclick="addApiKey()" class="bg-indigo-600 text-white px-4 rounded-lg hover:bg-indigo-700 transition shadow-md shadow-indigo-500/20"><i class="fa-solid fa-plus"></i></button>
             </div>
         </div>
     </div>
@@ -200,298 +225,542 @@
     <div id="toast" class="fixed bottom-24 left-1/2 transform -translate-x-1/2 px-5 py-3 rounded-xl text-sm shadow-2xl opacity-0 pointer-events-none transition-opacity duration-300 z-50 text-center w-max max-w-[90%] font-medium flex items-center gap-2"></div>
 
     <script>
-        // --- DATA ---
         const VOICES = [
-            { name: "Kore", gender: "زن", style: "استاندارد", desc: "پیشنهادی، شفاف" },
-            { name: "Zephyr", gender: "مرد", style: "استاندارد", desc: "پیشنهادی، گرم" },
-            { name: "Puck", gender: "مرد", style: "استاندارد", desc: "محکم" },
-            { name: "Fenrir", gender: "مرد", style: "عمیق", desc: "بسیار بم، تریلر" },
-            { name: "Leda", gender: "زن", style: "نرم", desc: "آرام و ملایم" },
-            { name: "Aoede", gender: "زن", style: "استاندارد", desc: "رسا و جدی" },
-            { name: "Charon", gender: "مرد", style: "عمیق", desc: "خشن" },
-            { name: "Orus", gender: "مرد", style: "استاندارد", desc: "عادی" },
-            { name: "Callirrhoe", gender: "زن", style: "استاندارد", desc: "شاداب" },
-            { name: "Enceladus", gender: "مرد", style: "استاندارد", desc: "اخبار" },
-            { name: "Algenib", gender: "مرد", style: "استاندارد", desc: "تند و تیز" },
-            { name: "Rasalgethi", gender: "مرد", style: "استاندارد", desc: "مکالمه" },
-            { name: "Iapetus", gender: "مرد", style: "استاندارد", desc: "جدی" }
+            { name: "Kore", desc: "پیشنهادی، شفاف" }, { name: "Zephyr", desc: "پیشنهادی، گرم" }, { name: "Puck", desc: "محکم" }, { name: "Fenrir", desc: "بسیار بم، تریلر" }, { name: "Leda", desc: "آرام و ملایم" }, { name: "Aoede", desc: "رسا و جدی" }, { name: "Charon", desc: "خشن" }, { name: "Orus", desc: "عادی" }, { name: "Callirrhoe", desc: "شاداب" }, { name: "Enceladus", desc: "اخبار" }, { name: "Algenib", desc: "تند و تیز" }, { name: "Rasalgethi", desc: "مکالمه" }, { name: "Iapetus", desc: "جدی" }, { name: "Autonoe", desc: "استاندارد" }, { name: "Algieba", desc: "استاندارد" }, { name: "Despina", desc: "استاندارد" }, { name: "Erinome", desc: "استاندارد" }, { name: "Laomedeia", desc: "استاندارد" }, { name: "Pulcherrima", desc: "استاندارد" }, { name: "Achird", desc: "استاندارد" }, { name: "Vindemiatrix", desc: "استاندارد" }, { name: "Sadachbia", desc: "استاندارد" }, { name: "Achernar", desc: "استاندارد" }, { name: "Alnilam", desc: "استاندارد" }, { name: "Schedar", desc: "استاندارد" }, { name: "Gacrux", desc: "استاندارد" }, { name: "Zubenelgenubi", desc: "استاندارد" }, { name: "Sadaltager", desc: "استاندارد" }, { name: "Sulafat", desc: "استاندارد" }, { name: "Umbriel", desc: "استاندارد" }
         ];
 
-        // Values are simple adjectives to prevent reading
         const TONE_PRESETS = [
-            { label: "عادی", value: "", icon: "fa-regular fa-comment" },
-            { label: "رسمی/خبری", value: "Formal, Clear", icon: "fa-solid fa-bullhorn" },
-            { label: "کودکانه", value: "Warm, Engaging", icon: "fa-solid fa-book-open" },
-            { label: "هیجانی", value: "Excited, Fast", icon: "fa-regular fa-face-laugh-beam" },
-            { label: "غمگین", value: "Sad, Slow", icon: "fa-regular fa-face-frown" },
-            { label: "زمزمه", value: "Whispering", icon: "fa-solid fa-ear-listen" },
-            { label: "حماسی", value: "Deep, Dramatic", icon: "fa-solid fa-film" },
-            { label: "رباتیک", value: "Monotone, Flat", icon: "fa-solid fa-robot" },
-            { label: "پیرمرد/زن", value: "Shaky, Gravelly", icon: "fa-solid fa-user-clock" }
+            { label: "عادی", value: "", icon: "fa-regular fa-comment" }, { label: "رسمی/خبری", value: "Formal, Clear", icon: "fa-solid fa-bullhorn" }, { label: "کودکانه", value: "Warm, Engaging", icon: "fa-solid fa-book-open" }, { label: "هیجانی", value: "Excited, Fast", icon: "fa-regular fa-face-laugh-beam" }, { label: "غمگین", value: "Sad, Slow", icon: "fa-regular fa-face-frown" }, { label: "زمزمه", value: "Whispering", icon: "fa-solid fa-ear-listen" }, { label: "حماسی", value: "Deep, Dramatic", icon: "fa-solid fa-film" }, { label: "رباتیک", value: "Monotone, Flat", icon: "fa-solid fa-robot" }, { label: "پیرمرد/زن", value: "Shaky, Gravelly", icon: "fa-solid fa-user-clock" }
         ];
 
         let apiKeys = JSON.parse(localStorage.getItem('gemini_tts_keys') || '[]');
         let currentTheme = localStorage.getItem('gemini_theme') || 'light';
+        let currentMode = 'single';
         let db;
+        let activeChunks = [];
+
+        // App State
+        let currentJobId = null;
+        let isGenerating = false;
+        let jobQueue = []; // { text, voice, index }
+        let jobResults = [];
+        let jobTone = "";
+        let jobMode = "";
 
         if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(console.error)); }
 
-        // --- INIT ---
         window.addEventListener('DOMContentLoaded', () => {
-            applyTheme(currentTheme);
-            populateVoiceSelect();
-            populateTonePresets();
-            renderApiKeys();
+            applyTheme(currentTheme); 
+            populateVoiceList(); populateTonePresets(); renderApiKeys(); 
             initDB();
+            setMode('single');
             if(apiKeys.length === 0) setTimeout(toggleSettings, 800);
         });
 
-        // --- DB ---
         function initDB() {
-            const r = indexedDB.open("GeminiTTSDB", 1);
+            const r = indexedDB.open("GeminiStudioDB", 1);
             r.onupgradeneeded = e => { if (!e.target.result.objectStoreNames.contains("history")) e.target.result.createObjectStore("history", { keyPath: "id" }); };
             r.onsuccess = e => { db = e.target.result; loadHistory(); };
         }
 
-        // --- UI POPULATORS ---
-        function populateTonePresets() {
-            const container = document.getElementById('tonePresets');
-            TONE_PRESETS.forEach(tone => {
-                const btn = document.createElement('button');
-                btn.className = "snap-start shrink-0 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-[11px] text-gray-600 dark:text-gray-300 hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-2 shadow-sm min-w-[max-content]";
-                btn.innerHTML = `<i class="${tone.icon}"></i> ${tone.label}`;
-                btn.onclick = () => {
-                    const input = document.getElementById('toneInput');
-                    input.value = tone.value;
-                    input.classList.add('ring-2', 'ring-indigo-500');
-                    setTimeout(() => input.classList.remove('ring-2', 'ring-indigo-500'), 300);
-                };
-                container.appendChild(btn);
-            });
-            const spacer = document.createElement('div'); spacer.className = "w-4 shrink-0"; container.appendChild(spacer);
-        }
+        function setMode(mode) {
+            currentMode = mode;
+            const indicator = document.getElementById('modeIndicator');
+            const btnSingle = document.getElementById('modeBtn-single');
+            const btnMulti = document.getElementById('modeBtn-multi');
+            const singleVoice = document.getElementById('singleVoiceContainer');
+            const multiInfo = document.getElementById('multiInfo');
 
-        function populateVoiceSelect() {
-            const select = document.getElementById('voiceSelect');
-            VOICES.forEach(v => {
-                const option = document.createElement('option');
-                option.value = v.name;
-                option.textContent = `${v.name} (${v.desc})`;
-                if (v.name === 'Kore') option.selected = true;
-                select.appendChild(option);
-            });
-        }
+            btnSingle.classList.remove('text-indigo-600', 'text-gray-500');
+            btnMulti.classList.remove('text-indigo-600', 'text-gray-500');
 
-        // --- API HELPERS ---
-        async function getWorkingKey(fn) {
-            if (apiKeys.length === 0) { showToast('کلید API را وارد کنید', true); toggleSettings(); return null; }
-            for (const key of apiKeys) {
-                try { return await fn(key); } catch (e) { console.warn('Key failed, trying next...'); continue; }
+            if (mode === 'single') {
+                indicator.style.transform = 'translateX(0)';
+                btnSingle.classList.add('text-indigo-600');
+                btnMulti.classList.add('text-gray-500', 'dark:text-gray-400');
+                singleVoice.classList.remove('hidden', 'opacity-0', 'h-0');
+                multiInfo.classList.add('hidden');
+            } else {
+                indicator.style.transform = 'translateX(-100%)';
+                btnMulti.classList.add('text-indigo-600');
+                btnSingle.classList.add('text-gray-500', 'dark:text-gray-400');
+                singleVoice.classList.add('hidden', 'opacity-0', 'h-0');
+                multiInfo.classList.remove('hidden');
             }
-            throw new Error('تمام کلیدها با خطا مواجه شدند.');
         }
 
-        // --- TONE ENHANCER (Safe Mode) ---
-        async function enhanceTone() {
-            const input = document.getElementById('toneInput');
-            const text = input.value.trim();
-            if (!text) { showToast('توصیفی بنویسید', true); return; }
-
-            const btn = document.getElementById('enhanceBtn');
-            const icon = btn.querySelector('i');
-            const loader = document.getElementById('enhanceLoader');
-
-            btn.disabled = true; icon.classList.add('hidden'); loader.classList.remove('hidden');
-
-            try {
-                const enhancedPrompt = await getWorkingKey(async (key) => {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`;
-                    // Strict instruction for adjectives only
-                    const prompt = `Convert user description to 3-4 English adjectives for a TTS voice style. NO sentences. Input: "${text}"`;
-                    const res = await fetch(url, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.3 } })
-                    });
-                    if(!res.ok) throw new Error('API Error');
-                    const cand = await res.json();
-                    return cand.candidates[0].content.parts[0].text.trim().replace(/\.$/, '');
-                });
-                if (enhancedPrompt) { input.value = enhancedPrompt; showToast('بهینه شد ✨'); }
-            } catch (e) { showToast('خطا: ' + e.message, true); } 
-            finally { btn.disabled = false; icon.classList.remove('hidden'); loader.classList.add('hidden'); }
+        function updateCounts() { 
+            const val = document.getElementById('textInput').value;
+            const chars = val.length;
+            const words = val.trim() === '' ? 0 : val.trim().split(/\s+/).length;
+            document.getElementById('charCount').textContent = `${chars} کاراکتر | ${words} کلمه`; 
         }
 
-        // --- AUTO DIACRITICS ---
-        async function autoDiacritics() {
-            const textInput = document.getElementById('textInput');
-            const text = textInput.value.trim();
-            if (!text) { showToast('متن خالی است', true); return; }
-            const btn = document.getElementById('diacriticBtn');
-            const loader = document.getElementById('diacriticLoader');
-            const icon = btn.querySelector('.fa-spell-check');
-            btn.disabled = true; icon.classList.add('hidden'); loader.classList.remove('hidden');
-
-            try {
-                const resText = await getWorkingKey(async (key) => {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`;
-                    const prompt = `Add minimal diacritics (harakat) to this Persian text. Kasra for Ezafe is priority. Output ONLY text. Input: ${text}`;
-                    const res = await fetch(url, {
-                        method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1 } })
-                    });
-                    if(!res.ok) throw new Error('API Error');
-                    return (await res.json()).candidates[0].content.parts[0].text.trim();
-                });
-                if (resText) { textInput.value = resText; showToast('انجام شد'); }
-            } catch (e) { showToast(e.message, true); } 
-            finally { btn.disabled = false; icon.classList.remove('hidden'); loader.classList.add('hidden'); }
+        // --- CHUNKING LOGIC ---
+        function splitText(text, count) {
+            if (count === 1) return [text];
+            const sentences = text.match(/[^.?!؟\n]+[.?!؟\n]*/g) || [text];
+            const totalLen = text.length; const avgLen = totalLen / count;
+            let chunks = []; let currentChunk = "";
+            for (let s of sentences) {
+                if ((currentChunk.length + s.length) > avgLen && chunks.length < count - 1) { chunks.push(currentChunk.trim()); currentChunk = s; } else { currentChunk += s; }
+            }
+            if (currentChunk.trim()) chunks.push(currentChunk.trim());
+            while (chunks.length < count) {
+                const largestIdx = chunks.reduce((iMax, x, i, arr) => x.length > arr[iMax].length ? i : iMax, 0);
+                const toSplit = chunks[largestIdx]; const mid = Math.floor(toSplit.length / 2);
+                const spaceNearMid = toSplit.indexOf(' ', mid); const splitPoint = spaceNearMid !== -1 ? spaceNearMid : mid;
+                chunks.splice(largestIdx, 1, toSplit.substring(0, splitPoint).trim(), toSplit.substring(splitPoint).trim());
+            }
+            return chunks;
         }
 
-        // --- GENERATE AUDIO ---
-        async function generateAudio() {
+        function prepareGeneration() {
             const text = document.getElementById('textInput').value.trim();
-            const tone = document.getElementById('toneInput').value.trim();
-            const voice = document.getElementById('voiceSelect').value;
-
             if (!text) { showToast('متن را وارد کنید', true); return; }
-            setLoading(true);
+            if (isGenerating) { showToast('لطفاً صبر کنید تا پردازش فعلی تمام شود', true); return; }
 
-            // Safe prompt construction
-            let prompt = text;
-            if (tone) {
-                // Using parentheses helps isolate style from content
-                prompt = `(Style: ${tone}) ${text}`;
-            }
+            const modal = document.getElementById('chunkModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.remove('opacity-0', 'scale-95'), 10);
+
+            let initialCount = 1;
+            if (text.length > 300) initialCount = Math.ceil(text.length / 300);
+            
+            const slider = document.getElementById('chunkSlider');
+            slider.value = initialCount;
+            slider.max = Math.max(10, Math.ceil(text.length / 50) + 1);
+            updateChunkingFromSlider(initialCount);
+        }
+
+        function updateChunkingFromSlider(val) {
+            document.getElementById('chunkCountDisplay').textContent = val;
+            const text = document.getElementById('textInput').value.trim();
+            activeChunks = splitText(text, parseInt(val));
+            renderChunks();
+        }
+
+        function renderChunks() {
+            const container = document.getElementById('chunksContainer');
+            container.innerHTML = '';
+            
+            const globalVoice = document.getElementById('voiceSelect').value;
+            VOICES.sort((a,b)=>a.name.localeCompare(b.name));
+
+            activeChunks.forEach((chunkText, idx) => {
+                const div = document.createElement('div');
+                div.className = "bg-white dark:bg-dark-input rounded-xl p-3 border border-gray-200 dark:border-gray-600 shadow-sm animate-fade-in group relative focus-within:ring-2 focus-within:ring-indigo-400";
+                
+                let defaultVoice = globalVoice;
+                if(currentMode === 'multi') { if (idx % 2 !== 0) defaultVoice = "Fenrir"; }
+                let optionsHtml = VOICES.map(v => `<option value="${v.name}" ${v.name === defaultVoice ? 'selected' : ''}>${v.name}</option>`).join('');
+
+                div.innerHTML = `
+                    <div class="flex justify-between items-center mb-2 gap-2">
+                        <span class="text-[10px] text-gray-400 shrink-0">بخش ${idx + 1}</span>
+                        <select class="chunk-voice-select text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-none rounded-lg py-1 px-2 cursor-pointer focus:ring-2 focus:ring-indigo-500">${optionsHtml}</select>
+                    </div>
+                    <textarea class="chunk-editor w-full bg-transparent border-none outline-none resize-none text-sm text-gray-700 dark:text-gray-200 leading-6 font-medium" rows="3" oninput="activeChunks[${idx}] = this.value">${chunkText}</textarea>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function closeChunkModal() {
+            const modal = document.getElementById('chunkModal');
+            modal.classList.add('opacity-0', 'scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        // --- GENERATION LOGIC ---
+        
+        async function startJobInUI() {
+            const editors = document.querySelectorAll('.chunk-editor');
+            const voiceSelects = document.querySelectorAll('.chunk-voice-select');
+            
+            jobQueue = [];
+            jobResults = new Array(editors.length).fill(null);
+            jobTone = document.getElementById('toneInput').value.trim();
+            jobMode = currentMode;
+            currentJobId = Date.now();
+            const fullText = Array.from(editors).map(e => e.value.trim()).join('\n');
+
+            editors.forEach((ed, i) => {
+                const txt = ed.value.trim();
+                const v = voiceSelects[i].value;
+                if(txt) jobQueue.push({ text: txt, voice: v, index: i });
+            });
+
+            closeChunkModal();
+            isGenerating = true;
+
+            const historyList = document.getElementById('historyList');
+            const projectDiv = document.createElement('div');
+            projectDiv.id = `project-${currentJobId}`;
+            projectDiv.className = "bg-white dark:bg-gray-800 p-4 rounded-2xl border border-indigo-200 dark:border-indigo-900 shadow-md flex flex-col gap-4 animate-fade-in relative overflow-hidden";
+            
+            projectDiv.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div class="flex-1 overflow-hidden">
+                        <div class="flex items-center gap-2 mb-1">
+                            <i class="fa-solid fa-bolt text-yellow-500 animate-pulse"></i>
+                            <span class="text-[10px] bg-indigo-50 dark:bg-indigo-900 px-2 rounded-full text-indigo-600 dark:text-indigo-300">در حال تولید...</span>
+                        </div>
+                        <p class="text-xs font-bold text-gray-800 dark:text-gray-200 truncate" dir="auto">${fullText}</p>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-50 dark:bg-black/20 rounded-xl p-3 flex flex-col gap-2 opacity-50 pointer-events-none" id="main-player-${currentJobId}">
+                    <div class="text-center text-xs text-gray-400 py-2">میکس نهایی پس از تکمیل تمام بخش‌ها ساخته می‌شود</div>
+                </div>
+
+                <div class="space-y-2" id="parts-container-${currentJobId}">
+                    ${jobQueue.map(task => `
+                        <div id="part-row-${currentJobId}-${task.index}" class="flex items-center gap-3 p-2 rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 transition-all">
+                            <div class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center shrink-0">
+                                <i class="fa-solid fa-spinner fa-spin text-gray-400 text-xs" id="part-icon-${currentJobId}-${task.index}"></i>
+                            </div>
+                            <div class="flex-1 overflow-hidden">
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-0.5">${task.voice}</p>
+                                <p class="text-xs text-gray-700 dark:text-gray-300 truncate">${task.text}</p>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            if(historyList.firstChild) historyList.insertBefore(projectDiv, historyList.firstChild);
+            else historyList.appendChild(projectDiv);
+
+            processQueueUI();
+        }
+
+        async function processQueueUI() {
+            if (jobQueue.length === 0) { finalizeJobUI(); return; }
+            const task = jobQueue.shift();
+            
+            const icon = document.getElementById(`part-icon-${currentJobId}-${task.index}`);
+            if(icon) icon.className = "fa-solid fa-circle-notch fa-spin text-indigo-500 text-xs";
 
             try {
-                await getWorkingKey(async (key) => {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${key}`;
-                    const payload = {
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: {
-                            responseModalities: ["AUDIO"],
-                            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
-                        }
-                    };
-                    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-                    if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || res.statusText); }
-                    const data = await res.json();
-                    const audioData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-                    if (!audioData) throw new Error("داده صوتی دریافت نشد");
-                    processAndSave(audioData, text, tone, voice);
-                });
-            } catch (e) { showToast(e.message, true); } finally { setLoading(false); }
+                let prompt = task.text;
+                if (jobTone) prompt = `(Style: ${jobTone}) ${task.text}`;
+                const blob = await getAudioFromAPI(prompt, task.voice);
+                
+                const partData = { blob: blob, voice: task.voice, text: task.text };
+                jobResults[task.index] = partData;
+                updatePartUI(task.index, partData);
+                setTimeout(processQueueUI, 300);
+            } catch (e) {
+                console.error(e);
+                showToast(`خطا در بخش ${task.index + 1}`, true);
+                if(icon) icon.className = "fa-solid fa-triangle-exclamation text-red-500 text-xs";
+                setTimeout(processQueueUI, 500);
+            }
         }
 
-        function processAndSave(base64, text, tone, voice) {
-            const binary = window.atob(base64);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-            const wav = pcmToWav(bytes, 24000);
-            const blob = new Blob([wav], { type: 'audio/wav' });
-            saveToHistory(text, tone, voice, blob);
-            showToast('صدا تولید شد');
+        function updatePartUI(index, partData) {
+            const row = document.getElementById(`part-row-${currentJobId}-${index}`);
+            if(!row) return;
+
+            const url = URL.createObjectURL(partData.blob);
+            row.className = "flex items-center gap-3 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900 bg-white dark:bg-gray-700 transition-all shadow-sm";
+            row.innerHTML = `
+                <button onclick="playSinglePart(this, '${url}')" class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0 hover:bg-indigo-600 hover:text-white transition group">
+                    <i class="fa-solid fa-play text-[10px] ml-0.5"></i>
+                </button>
+                <div class="flex-1 overflow-hidden">
+                    <div class="flex justify-between items-center">
+                        <p class="text-[10px] text-indigo-500 font-bold mb-0.5">${partData.voice}</p>
+                        <a href="${url}" download="part_${index+1}.wav" class="text-gray-300 hover:text-gray-500 px-1"><i class="fa-solid fa-download text-[10px]"></i></a>
+                    </div>
+                    <p class="text-xs text-gray-700 dark:text-gray-300 truncate" dir="auto">${partData.text}</p>
+                </div>
+            `;
         }
 
-        // --- HISTORY ---
-        function saveToHistory(text, tone, voice, blob) {
+        async function finalizeJobUI() {
+            const validParts = jobResults.filter(r => r && r.blob);
+            if (validParts.length === 0) { showToast('تولید شکست خورد', true); isGenerating = false; return; }
+
+            const audioBuffers = await Promise.all(validParts.map(p => p.blob.arrayBuffer()));
+            const mergedBuffer = mergeAudioBuffers(audioBuffers);
+            const mergedBlob = new Blob([mergedBuffer], { type: 'audio/wav' });
+
+            const fullText = validParts.map(p => p.text).join('\n\n');
+            saveToHistory(fullText, jobTone, validParts, jobMode, mergedBlob);
+        }
+
+        function mergeAudioBuffers(buffers) {
+            if (buffers.length === 0) return new ArrayBuffer(0);
+            if (buffers.length === 1) return buffers[0];
+            
+            const header = buffers[0].slice(0, 44);
+            const dataLength = buffers.reduce((acc, b) => acc + b.byteLength - 44, 0);
+            const totalLength = dataLength + 36; 
+
+            const result = new Uint8Array(44 + dataLength);
+            result.set(new Uint8Array(header), 0);
+            
+            const view = new DataView(result.buffer);
+            view.setUint32(4, totalLength, true); 
+            view.setUint32(40, dataLength, true); 
+
+            let offset = 44;
+            for (const buffer of buffers) {
+                const data = new Uint8Array(buffer).subarray(44);
+                result.set(data, offset);
+                offset += data.length;
+            }
+
+            return result.buffer;
+        }
+
+        function saveToHistory(fullText, tone, parts, mode, mergedBlob) {
+            if(!db) return;
             const t = db.transaction(["history"], "readwrite");
-            t.objectStore("history").add({ id: Date.now(), text, tone, voice, blob, date: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) });
-            t.oncomplete = () => loadHistory();
+            t.objectStore("history").add({ 
+                id: Date.now(), 
+                fullText, tone, parts, mode, 
+                mergedBlob: mergedBlob, 
+                date: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) 
+            });
+            t.oncomplete = () => { 
+                isGenerating = false; 
+                showToast('پروژه ذخیره و میکس شد'); 
+                loadHistory(); 
+            };
         }
 
         function loadHistory() {
             if (!db) return;
             const r = db.transaction(["history"], "readonly").objectStore("history").getAll();
             r.onsuccess = () => {
-                const list = document.getElementById('historyList');
-                list.innerHTML = '';
+                const list = document.getElementById('historyList'); list.innerHTML = '';
                 const items = r.result.sort((a,b) => b.id - a.id);
-                if(items.length === 0) { list.innerHTML = '<div class="text-xs text-gray-400 text-center py-6 opacity-50">تاریخچه خالی است</div>'; return; }
-                items.forEach(i => {
-                    const url = URL.createObjectURL(i.blob);
+                if(items.length === 0) { list.innerHTML = '<div class="text-xs text-gray-400 text-center py-6 opacity-50">هنوز پروژه‌ای ندارید</div>'; return; }
+                
+                items.forEach(item => {
                     const div = document.createElement('div');
-                    div.className = "bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col gap-2";
+                    div.className = "bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col gap-4 animate-fade-in group";
+                    const isMulti = item.mode === 'multi';
+                    const modeIcon = isMulti ? '<i class="fa-solid fa-users-rays text-pink-500"></i>' : '<i class="fa-solid fa-user text-indigo-500"></i>';
+                    
+                    const mergedUrl = item.mergedBlob ? URL.createObjectURL(item.mergedBlob) : null;
+
                     div.innerHTML = `
                         <div class="flex justify-between items-start">
                             <div class="flex-1 overflow-hidden">
-                                <p class="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">${i.text}</p>
-                                <p class="text-[10px] text-gray-500 mt-1">${i.voice} | ${i.date}</p>
+                                <div class="flex items-center gap-2 mb-1">${modeIcon}<span class="text-[10px] bg-gray-100 dark:bg-gray-700 px-2 rounded-full text-gray-500">${item.parts.length} بخش</span><span class="text-[10px] text-gray-400">${item.date}</span></div>
+                                <p class="text-xs font-bold text-gray-800 dark:text-gray-200 truncate" dir="auto">${item.fullText}</p>
                             </div>
-                            <button onclick="delHist(${i.id})" class="text-gray-300 hover:text-red-500 px-2"><i class="fa-solid fa-xmark"></i></button>
+                            <button onclick="delHist(${item.id})" class="text-gray-300 hover:text-red-500 px-2"><i class="fa-solid fa-trash"></i></button>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <audio controls src="${url}" class="h-8 w-full block rounded-lg bg-gray-50 dark:bg-gray-900"></audio>
-                            <a href="${url}" download="tts_${i.id}.wav" class="bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 w-8 h-8 flex items-center justify-center rounded-lg"><i class="fa-solid fa-download text-xs"></i></a>
-                        </div>`;
+
+                        ${mergedUrl ? `
+                        <div class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl p-3 flex flex-col gap-2">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">میکس نهایی (کل پروژه)</span>
+                                <a href="${mergedUrl}" download="full_mix_${item.id}.wav" class="text-[10px] text-indigo-500 hover:underline"><i class="fa-solid fa-download"></i> دانلود یکجا</a>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <button onclick="toggleMainPlay('${mergedUrl}', this, ${item.id})" id="mainPlay-${item.id}" class="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/30 transition"><i class="fa-solid fa-play ml-0.5"></i></button>
+                                <div class="flex-1 flex flex-col justify-center">
+                                    <input type="range" id="seek-${item.id}" min="0" max="100" value="0" step="0.1" class="w-full" oninput="seekMain(${item.id}, this.value)">
+                                    <div class="flex justify-between text-[10px] text-gray-400 mt-1">
+                                        <span id="time-${item.id}">0:00</span>
+                                        <div class="flex items-center gap-2">
+                                            <select onchange="changeSpeed(${item.id}, this.value)" class="bg-transparent border-none text-xs font-mono text-gray-500 focus:text-indigo-600 cursor-pointer outline-none p-0">
+                                                <option value="0.5">0.5x</option>
+                                                <option value="1" selected>1.0x</option>
+                                                <option value="1.25">1.25x</option>
+                                                <option value="1.5">1.5x</option>
+                                                <option value="2">2.0x</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>` : ''}
+
+                        <div class="space-y-1.5 max-h-60 overflow-y-auto custom-scroll pr-1">
+                            ${item.parts.map((part, i) => {
+                                const pUrl = URL.createObjectURL(part.blob);
+                                return `
+                                <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 border border-transparent hover:border-gray-100 transition-all group/part">
+                                    <button onclick="playSinglePart(this, '${pUrl}')" class="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 flex items-center justify-center shrink-0 hover:bg-indigo-500 hover:text-white transition">
+                                        <i class="fa-solid fa-play text-[9px] ml-0.5"></i>
+                                    </button>
+                                    <div class="flex-1 overflow-hidden">
+                                        <div class="flex justify-between items-center">
+                                            <p class="text-[9px] text-gray-400 font-bold mb-0.5">${part.voice} <span class="opacity-50 font-normal">| بخش ${i+1}</span></p>
+                                            <a href="${pUrl}" download="part_${i+1}.wav" class="opacity-0 group-hover/part:opacity-100 text-gray-300 hover:text-indigo-500 px-1 transition-opacity"><i class="fa-solid fa-download text-[10px]"></i></a>
+                                        </div>
+                                        <p class="text-[11px] text-gray-600 dark:text-gray-300 truncate" dir="auto">${part.text}</p>
+                                    </div>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                    `;
                     list.appendChild(div);
                 });
             };
         }
-        function delHist(id) { if(confirm('حذف شود؟')) { const t = db.transaction(["history"], "readwrite"); t.objectStore("history").delete(id); t.oncomplete = loadHistory; } }
-        function clearHistory() { if(confirm('همه پاک شود؟')) { const t = db.transaction(["history"], "readwrite"); t.objectStore("history").clear(); t.oncomplete = loadHistory; } }
-        function pcmToWav(pcm, rate) {
-            const b = new ArrayBuffer(44 + pcm.length), v = new DataView(b);
-            const w = (o,s) => { for(let i=0;i<s.length;i++) v.setUint8(o+i,s.charCodeAt(i)); };
-            w(0,'RIFF'); v.setUint32(4,36+pcm.length,true); w(8,'WAVE'); w(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,rate,true); v.setUint32(28,rate*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,'data'); v.setUint32(40,pcm.length,true); new Uint8Array(b).set(pcm,44); return b;
-        }
 
-        // --- SETTINGS LOGIC (FIXED) ---
-        function applyTheme(t) { localStorage.setItem('gemini_theme', t); document.documentElement.classList.toggle('dark', t==='dark'); document.getElementById('themeIcon').className = t==='dark' ? 'fa-solid fa-sun text-yellow-400' : 'fa-solid fa-moon'; }
-        function toggleTheme() { applyTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark'); }
-        function toggleSettings() { const m = document.getElementById('settingsModal'); m.classList.toggle('hidden'); setTimeout(()=> m.classList.toggle('opacity-0'), 10); }
-        function showToast(m,e) { const t=document.getElementById('toast'); t.innerHTML = (e?'<i class="fa-solid fa-circle-exclamation text-red-300"></i> ':'<i class="fa-solid fa-circle-check text-green-300"></i> ')+m; t.className = `fixed bottom-24 left-1/2 -translate-x-1/2 px-5 py-3 rounded-xl text-sm shadow-2xl z-50 flex items-center gap-2 font-medium transition-all duration-300 ${e?'bg-red-600 text-white':'bg-gray-800 text-white'}`; t.style.opacity='1'; setTimeout(()=>t.style.opacity='0',3000); }
-        
-        function renderApiKeys() { 
-            const l=document.getElementById('keyList'); 
-            l.innerHTML=''; 
+        // --- PLAYBACK ENGINES ---
+        let mainAudio = new Audio();
+        let currentMainId = null;
+
+        function toggleMainPlay(url, btn, id) {
+            const icon = btn.querySelector('i');
             
-            if (apiKeys.length === 0) {
-                l.innerHTML = '<div class="text-center text-gray-400 text-xs py-4">هنوز کلیدی وارد نشده است</div>';
+            // If clicking the same button that is currently playing
+            if (currentMainId === id && !mainAudio.paused) {
+                mainAudio.pause();
+                icon.className = 'fa-solid fa-play ml-0.5';
+                return;
+            }
+            
+            // If clicking same button but it was paused
+            if (currentMainId === id && mainAudio.paused) {
+                // Stop any single audio first
+                if(!singleAudio.paused) {
+                     singleAudio.pause();
+                     if(currentSingleBtn) currentSingleBtn.querySelector('i').className = 'fa-solid fa-play text-[9px] ml-0.5';
+                }
+                mainAudio.play();
+                icon.className = 'fa-solid fa-pause';
+                return;
             }
 
-            apiKeys.forEach((k,i)=>{ 
-                const d=document.createElement('div'); 
-                d.className='flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg border border-gray-100 dark:border-gray-600'; 
-                d.innerHTML=`
-                    <div class="flex-1 overflow-hidden mr-2 relative">
-                        <input type="password" id="key-${i}" value="${k}" readonly class="w-full bg-transparent border-none outline-none text-[10px] font-mono text-gray-600 dark:text-gray-300 h-6">
-                    </div>
-                    <div class="flex items-center gap-1">
-                        <button onclick="toggleVis(${i})" class="text-gray-400 hover:text-indigo-500 p-1.5 rounded"><i id="eye-${i}" class="fa-solid fa-eye"></i></button>
-                        <button onclick="copyKey('${k}')" class="text-gray-400 hover:text-green-500 p-1.5 rounded"><i class="fa-regular fa-copy"></i></button>
-                        <button onclick="rmKey(${i})" class="text-red-300 hover:text-red-500 p-1.5 rounded"><i class="fa-solid fa-trash"></i></button>
-                    </div>`; 
-                l.appendChild(d); 
-            }); 
-            document.getElementById('noKeyBadge').classList.toggle('hidden', apiKeys.length>0); 
+            // New Track
+            mainAudio.pause();
+            
+            // Reset icons
+            if(currentMainId !== null) {
+                const prevBtn = document.getElementById(`mainPlay-${currentMainId}`);
+                if(prevBtn) prevBtn.querySelector('i').className = 'fa-solid fa-play ml-0.5';
+            }
+            if(!singleAudio.paused) {
+                 singleAudio.pause();
+                 if(currentSingleBtn) currentSingleBtn.querySelector('i').className = 'fa-solid fa-play text-[9px] ml-0.5';
+            }
+
+            mainAudio.src = url;
+            currentMainId = id;
+            
+            const seekBar = document.getElementById(`seek-${id}`);
+            const timeDisplay = document.getElementById(`time-${id}`);
+            
+            mainAudio.onloadedmetadata = () => { seekBar.max = mainAudio.duration; };
+            mainAudio.ontimeupdate = () => { seekBar.value = mainAudio.currentTime; timeDisplay.textContent = formatTime(mainAudio.currentTime); };
+            mainAudio.onended = () => { icon.className = 'fa-solid fa-play ml-0.5'; seekBar.value = 0; };
+            
+            mainAudio.play();
+            icon.className = 'fa-solid fa-pause';
         }
 
-        function toggleVis(i) { const inp=document.getElementById(`key-${i}`), ic=document.getElementById(`eye-${i}`); if(inp.type==='password'){inp.type='text';ic.className='fa-solid fa-eye-slash';}else{inp.type='password';ic.className='fa-solid fa-eye';} }
-        function copyKey(k) { navigator.clipboard.writeText(k).then(()=>showToast('کپی شد')); }
-        
-        function addApiKey() { 
-            const input = document.getElementById('newApiKey');
-            const v = input.value.trim(); 
-            if(v){
-                apiKeys.push(v); 
-                localStorage.setItem('gemini_tts_keys',JSON.stringify(apiKeys)); 
-                input.value=''; 
-                renderApiKeys(); 
-                showToast('ذخیره شد');
-            } 
-        }
-        
-        function rmKey(i) { 
-            if(confirm('حذف شود؟')){
-                apiKeys.splice(i,1); 
-                localStorage.setItem('gemini_tts_keys',JSON.stringify(apiKeys)); 
-                renderApiKeys();
-            } 
+        function seekMain(id, val) {
+            if (currentMainId === id) mainAudio.currentTime = val;
         }
 
-        function setLoading(l) { const b=document.getElementById('generateBtn'); if(l){b.disabled=true;b.classList.add('opacity-75');document.getElementById('btnText').textContent='';document.getElementById('btnIcon').classList.add('hidden');document.getElementById('btnLoader').classList.remove('hidden');}else{b.disabled=false;b.classList.remove('opacity-75');document.getElementById('btnText').textContent='تولید صدا';document.getElementById('btnIcon').classList.remove('hidden');document.getElementById('btnLoader').classList.add('hidden');}}
+        function changeSpeed(id, val) {
+            if (currentMainId === id) mainAudio.playbackRate = val;
+        }
+
+        // --- SINGLE PART PLAYER WITH TOGGLE ---
+        let singleAudio = new Audio();
+        let currentSingleBtn = null;
+
+        function playSinglePart(btn, url) {
+            const icon = btn.querySelector('i');
+
+            // 1. Check if same URL
+            if (singleAudio.src === url) {
+                if (!singleAudio.paused) {
+                    singleAudio.pause();
+                    icon.className = 'fa-solid fa-play text-[9px] ml-0.5';
+                } else {
+                    // Stop main if playing
+                    if (!mainAudio.paused) {
+                        mainAudio.pause();
+                        if(currentMainId) document.getElementById(`mainPlay-${currentMainId}`).querySelector('i').className = 'fa-solid fa-play ml-0.5';
+                    }
+                    singleAudio.play();
+                    icon.className = 'fa-solid fa-pause text-[9px]';
+                }
+                return;
+            }
+
+            // 2. New URL - Reset previous states
+            if (currentSingleBtn && currentSingleBtn !== btn) {
+                const prevIcon = currentSingleBtn.querySelector('i');
+                if(prevIcon) prevIcon.className = 'fa-solid fa-play text-[9px] ml-0.5';
+            }
+            
+            if (!mainAudio.paused) {
+                mainAudio.pause();
+                if(currentMainId) document.getElementById(`mainPlay-${currentMainId}`).querySelector('i').className = 'fa-solid fa-play ml-0.5';
+            }
+
+            singleAudio.src = url;
+            singleAudio.play();
+            currentSingleBtn = btn;
+            
+            icon.className = 'fa-solid fa-pause text-[9px]';
+
+            singleAudio.onended = () => {
+                icon.className = 'fa-solid fa-play text-[9px] ml-0.5';
+                currentSingleBtn = null;
+            };
+        }
+
+        function formatTime(s) {
+            if(isNaN(s)) return "0:00";
+            const m = Math.floor(s / 60);
+            const sec = Math.floor(s % 60);
+            return `${m}:${sec < 10 ? '0'+sec : sec}`;
+        }
+
+        // Utils
+        function toggleVoiceList() { const l=document.getElementById('voiceListContainer'),a=document.getElementById('voiceArrow'),o=l.classList.contains('open'); l.classList.toggle('open'); a.style.transform=!o?'rotate(180deg)':'rotate(0deg)'; }
+        function populateVoiceList() { 
+            const c=document.getElementById('voiceListInner'),h=document.getElementById('voiceSelect'); c.innerHTML=''; 
+            VOICES.sort((a,b)=>a.name.localeCompare(b.name));
+            VOICES.forEach(v=>{ const i=document.createElement('div'),s=v.name===h.value; i.className=`voice-item p-2 rounded-lg cursor-pointer flex justify-between items-center transition border border-transparent hover:bg-gray-100 dark:hover:bg-gray-700 ${s?'selected':''}`; i.onclick=(e)=>{if(e.target.closest('.test-btn'))return;document.getElementById('voiceSelect').value=v.name;document.getElementById('selectedVoiceName').textContent=v.name;document.getElementById('selectedVoiceDesc').textContent=`(${v.desc})`;toggleVoiceList();populateVoiceList();}; i.innerHTML=`<div class="flex items-center gap-2"><span class="text-sm font-bold text-gray-700 dark:text-gray-300 font-mono">${v.name}</span><span class="text-xs text-gray-400">(${v.desc})</span></div><button class="test-btn p-1.5 rounded-full text-indigo-500 hover:bg-indigo-100 dark:bg-opacity-20 transition flex items-center justify-center w-7 h-7" title="تست صدا" onclick="testVoice('${v.name}',this)"><i class="fa-solid fa-play text-[10px]"></i></button>`; c.appendChild(i);}); 
+        }
+        function populateTonePresets() { const c=document.getElementById('tonePresets'); TONE_PRESETS.forEach(t=>{const b=document.createElement('button');b.className="snap-start shrink-0 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-[11px] text-gray-600 dark:text-gray-300 hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-2 shadow-sm min-w-[max-content]";b.innerHTML=`<i class="${t.icon}"></i> ${t.label}`;b.onclick=()=>{document.getElementById('toneInput').value=t.value;};c.appendChild(b);});c.appendChild(document.createElement('div')).className="w-4 shrink-0"; }
+        async function getAudioFromAPI(text, voice) {
+            return await getWorkingKey(async (key) => {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${key}`;
+                const payload = { contents: [{ parts: [{ text: text }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } } };
+                const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+                if (!res.ok) throw new Error("API Error");
+                const data = await res.json();
+                const b64 = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+                const binary = window.atob(b64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                const wav = pcmToWav(bytes, 24000); 
+                return new Blob([wav], { type: 'audio/wav' });
+            });
+        }
+        function pcmToWav(p,r){const b=new ArrayBuffer(44+p.length),v=new DataView(b),w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};w(0,'RIFF');v.setUint32(4,36+p.length,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,r,true);v.setUint32(28,r*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,p.length,true);new Uint8Array(b).set(p,44);return b;}
+        
+        async function getWorkingKey(fn) { if (apiKeys.length === 0) { showToast('کلید API را وارد کنید', true); toggleSettings(); return null; } for (const k of apiKeys) { try { return await fn(k); } catch (e) { continue; } } throw new Error('همه کلیدها خطا دارند.'); }
+        async function testVoice(v,b) { const oi=b.innerHTML; b.innerHTML='<i class="fa-solid fa-spinner fa-spin text-[10px]"></i>'; b.disabled=true; try { await getAudioFromAPI("تست", v).then(blob => { new Audio(URL.createObjectURL(blob)).play(); }); } catch (e) { showToast("خطا: " + e.message, true); } finally { b.innerHTML = oi; b.disabled = false; } }
+        async function enhanceTone() { const i=document.getElementById('toneInput'),t=i.value.trim();if(!t){showToast('توصیفی بنویسید',true);return;}const b=document.getElementById('enhanceBtn'),ic=b.querySelector('i'),l=document.getElementById('enhanceLoader');b.disabled=true;ic.classList.add('hidden');l.classList.remove('hidden');try{await getWorkingKey(async(k)=>{const u=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${k}`,r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:`Convert user description to 3-4 English adjectives for a TTS voice style. NO sentences. Input: "${t}"`}]}]})}),x=(await r.json()).candidates[0].content.parts[0].text.trim().replace(/\.$/,'');i.value=x;showToast('بهینه شد ✨');});}catch(e){showToast(e.message,true);}finally{b.disabled=false;ic.classList.remove('hidden');l.classList.add('hidden');} }
+        async function autoDiacritics() { const i=document.getElementById('textInput'),t=i.value.trim();if(!t)return;const b=document.getElementById('diacriticBtn'),l=document.getElementById('diacriticLoader'),ic=b.querySelector('.fa-spell-check');b.disabled=true;ic.classList.add('hidden');l.classList.remove('hidden');try{await getWorkingKey(async(k)=>{const u=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${k}`,r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:`Add minimal diacritics (harakat) to this Persian text. Kasra for Ezafe is priority. Output ONLY text. Input: ${t}`}]}]})});i.value=(await r.json()).candidates[0].content.parts[0].text.trim();showToast('انجام شد');});}catch(e){showToast(e.message,true);}finally{b.disabled=false;ic.classList.remove('hidden');l.classList.add('hidden');} }
+        function delHist(id) { if(confirm('حذف شود؟')){const t=db.transaction(["history"],"readwrite");t.objectStore("history").delete(id);t.oncomplete=loadHistory;} }
+        function clearHistory() { if(confirm('همه پاک شود؟')){const t=db.transaction(["history"],"readwrite");t.objectStore("history").clear();t.oncomplete=loadHistory;} }
+        function applyTheme(t){localStorage.setItem('gemini_theme',t);document.documentElement.classList.toggle('dark',t==='dark');document.getElementById('themeIcon').className=t==='dark'?'fa-solid fa-sun text-yellow-400':'fa-solid fa-moon';}
+        function toggleTheme(){applyTheme(document.documentElement.classList.contains('dark')?'light':'dark');}
+        function toggleSettings(){const m=document.getElementById('settingsModal');m.classList.toggle('hidden');setTimeout(()=>m.classList.toggle('opacity-0'),10);}
+        function showToast(m,e){const t=document.getElementById('toast');t.innerHTML=(e?'<i class="fa-solid fa-circle-exclamation text-red-300"></i> ':'<i class="fa-solid fa-circle-check text-green-300"></i> ')+m;t.className=`fixed bottom-24 left-1/2 -translate-x-1/2 px-5 py-3 rounded-xl text-sm shadow-2xl z-50 flex items-center gap-2 font-medium transition-all duration-300 ${e?'bg-red-600 text-white':'bg-gray-800 text-white'}`;t.style.opacity='1';setTimeout(()=>t.style.opacity='0',3000);}
+        function renderApiKeys(){const l=document.getElementById('keyList');l.innerHTML='';if(apiKeys.length===0){l.innerHTML='<div class="text-center text-gray-400 text-xs py-4">هنوز کلیدی وارد نشده است</div>';}apiKeys.forEach((k,i)=>{const d=document.createElement('div');d.className='flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg border border-gray-100 dark:border-gray-600';d.innerHTML=`<div class="flex-1 overflow-hidden mr-2 relative"><input type="password" id="key-${i}" value="${k}" readonly class="w-full bg-transparent border-none outline-none text-[10px] font-mono text-gray-600 dark:text-gray-300 h-6"></div><div class="flex items-center gap-1"><button onclick="toggleVis(${i})" class="text-gray-400 hover:text-indigo-500 p-1.5 rounded"><i id="eye-${i}" class="fa-solid fa-eye"></i></button><button onclick="rmKey(${i})" class="text-red-300 hover:text-red-500 p-1.5 rounded"><i class="fa-solid fa-trash"></i></button></div>`;l.appendChild(d);});document.getElementById('noKeyBadge').classList.toggle('hidden',apiKeys.length>0);}
+        function toggleVis(i){const p=document.getElementById(`key-${i}`),c=document.getElementById(`eye-${i}`);if(p.type==='password'){p.type='text';c.className='fa-solid fa-eye-slash';}else{p.type='password';c.className='fa-solid fa-eye';}}
+        function addApiKey(){const i=document.getElementById('newApiKey'),v=i.value.trim();if(v){apiKeys.push(v);localStorage.setItem('gemini_tts_keys',JSON.stringify(apiKeys));i.value='';renderApiKeys();showToast('ذخیره شد');}}
+        function rmKey(i){if(confirm('حذف شود؟')){apiKeys.splice(i,1);localStorage.setItem('gemini_tts_keys',JSON.stringify(apiKeys));renderApiKeys();}}
     </script>
 </body>
 </html>
