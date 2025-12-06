@@ -5,16 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#4f46e5">
     <meta name="description" content="تبدیل متن به صوت حرفه‌ای با هوش مصنوعی جمینی">
-    <title>جمینی Voice Studio</title>
+    <title>جمینی Voice Studio Pro</title>
     <link rel="manifest" href="manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
                     colors: { dark: { bg: '#0f172a', card: '#1e293b', input: '#334155', text: '#f1f5f9' } },
-                    animation: { 'fade-in': 'fadeIn 0.3s ease-out' },
+                    animation: { 'fade-in': 'fadeIn 0.3s ease-out', 'pulse-slow': 'pulse 3s infinite' },
                     keyframes: { fadeIn: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } } }
                 }
             }
@@ -38,9 +39,37 @@
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; }
         .dark input[type=range]::-webkit-slider-runnable-track { background: #475569; }
 
-        /* Accordion transition */
         .accordion-content { transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out; max-height: 0; opacity: 0; overflow: hidden; }
         .accordion-content.open { max-height: 400px; opacity: 1; }
+
+        /* Karaoke Highlight */
+        .karaoke-active {
+            background-color: rgba(99, 102, 241, 0.1);
+            border-right: 3px solid #6366f1;
+            transform: scale(1.01);
+            transition: all 0.3s ease;
+        }
+        .dark .karaoke-active {
+            background-color: rgba(99, 102, 241, 0.2);
+        }
+        
+        /* New Badge Style for Roles */
+        .role-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 6px;
+            background-color: #e0e7ff;
+            color: #4338ca;
+            border: 1px solid #c7d2fe;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .dark .role-badge {
+            background-color: #312e81;
+            color: #c7d2fe;
+            border-color: #4338ca;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center p-0 md:p-4 bg-gray-50 dark:bg-dark-bg transition-colors duration-300">
@@ -54,7 +83,7 @@
                     <div class="bg-indigo-100 dark:bg-indigo-900/30 p-1.5 rounded-lg text-indigo-600">
                         <i class="fa-solid fa-microphone-lines"></i>
                     </div>
-                    جمینی <span class="gradient-text">Voice Studio</span>
+                    جمینی <span class="gradient-text">Studio Pro</span>
                 </h1>
             </div>
             <div class="flex items-center gap-2">
@@ -78,7 +107,7 @@
                     <i class="fa-solid fa-user"></i> تک‌گوینده
                 </button>
                 <button onclick="setMode('multi')" class="flex-1 py-2 text-xs font-bold text-center z-10 transition-colors duration-300 flex items-center justify-center gap-2 relative" id="modeBtn-multi">
-                    <i class="fa-solid fa-users-rays"></i> چند گوینده (مکالمه)
+                    <i class="fa-solid fa-users-rays"></i> سناریو/چندگوینده
                 </button>
             </div>
 
@@ -104,14 +133,14 @@
 
             <div id="multiInfo" class="hidden p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl text-xs text-indigo-700 dark:text-indigo-300 flex items-start gap-2">
                 <i class="fa-solid fa-info-circle mt-0.5"></i>
-                <p>در حالت چند گوینده، می‌توانید در مرحله بعد برای هر بخش، گوینده متفاوتی انتخاب کنید.</p>
+                <p>در این حالت، می‌توانید برای هر پاراگراف گوینده، لحن و سبک مجزا تعیین کنید.</p>
             </div>
 
-            <!-- Tone Section -->
-            <div class="space-y-3 relative group">
+            <!-- Tone Section (Global) -->
+            <div class="space-y-3 relative group" id="globalToneSection">
                 <div class="flex justify-between items-end">
                     <label class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-1">
-                        <i class="fa-solid fa-masks-theater text-pink-500"></i> لحن و سبک
+                        <i class="fa-solid fa-masks-theater text-pink-500"></i> لحن کلی (پیش‌فرض)
                     </label>
                 </div>
                 <div class="flex gap-2 relative">
@@ -135,16 +164,26 @@
                     </label>
                     <div class="flex gap-2">
                          <span id="charCount" class="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-md">0 کاراکتر | 0 کلمه</span>
-                        <button onclick="autoDiacritics()" id="diacriticBtn" class="text-[10px] bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-2.5 py-1 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 transition flex items-center gap-1.5 border border-green-200 dark:border-green-800">
+                    </div>
+                </div>
+                
+                <div class="relative">
+                    <textarea id="textInput" rows="6" oninput="updateCounts()" placeholder="متن خود را اینجا بنویسید..." 
+                        class="w-full p-4 bg-gray-50 dark:bg-dark-input dark:text-white rounded-xl border border-gray-200 dark:border-gray-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-900 outline-none transition resize-none text-base leading-relaxed text-right font-medium" dir="auto"></textarea>
+                    
+                    <!-- Text Tools -->
+                    <div class="absolute bottom-3 left-3 flex gap-2">
+                        <button onclick="openScriptWizard()" class="text-[10px] bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-2.5 py-1.5 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/60 transition flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-hat-wizard"></i>
+                            <span>سناریو نویس</span>
+                        </button>
+                        <button onclick="autoDiacritics()" id="diacriticBtn" class="text-[10px] bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-2.5 py-1.5 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/60 transition flex items-center gap-1.5 shadow-sm">
                             <i class="fa-solid fa-spell-check"></i>
                             <span>اصلاح اعراب</span>
                             <div id="diacriticLoader" class="loader loader-dark !border-green-500 !border-t-transparent w-3 h-3 border-2 hidden"></div>
                         </button>
                     </div>
                 </div>
-                
-                <textarea id="textInput" rows="5" oninput="updateCounts()" placeholder="متن خود را اینجا بنویسید..." 
-                    class="w-full p-4 bg-gray-50 dark:bg-dark-input dark:text-white rounded-xl border border-gray-200 dark:border-gray-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-900 outline-none transition resize-none text-base leading-relaxed text-right font-medium" dir="auto"></textarea>
             </div>
 
             <hr class="border-gray-100 dark:border-gray-700">
@@ -174,22 +213,36 @@
 
     </div>
 
-    <!-- Chunk Editor Modal -->
+    <!-- Chunk Editor Modal (Advanced) -->
     <div id="chunkModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center transition-opacity opacity-0 px-2 md:px-4">
         <div class="bg-white dark:bg-dark-card w-full max-w-lg h-[90vh] rounded-2xl p-0 shadow-2xl transform scale-95 transition-transform border border-gray-100 dark:border-gray-700 flex flex-col overflow-hidden">
             <div class="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-dark-input flex justify-between items-center shrink-0">
                 <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
                     <i class="fa-solid fa-sliders text-indigo-500"></i>
-                    تنظیمات نهایی
+                    تنظیمات داستان و گویندگان
                 </h3>
                 <button onclick="closeChunkModal()" class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300 flex items-center justify-center hover:bg-red-100 hover:text-red-500 transition">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
+            
+            <!-- Smart Splitter Section -->
+            <div class="p-3 bg-indigo-50 dark:bg-indigo-900/10 border-b border-indigo-100 dark:border-indigo-800 shrink-0">
+                <button onclick="smartSplitStory()" id="smartSplitBtn" class="w-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 py-2 rounded-xl transition flex items-center justify-center gap-2 text-sm font-bold shadow-sm relative overflow-hidden group">
+                    <span class="relative z-10 flex items-center gap-2">
+                        <i class="fa-solid fa-wand-magic-sparkles text-pink-500"></i>
+                        آنالیز و تفکیک هوشمند داستان (AI)
+                    </span>
+                    <div id="smartLoader" class="hidden absolute inset-0 bg-indigo-50/80 dark:bg-indigo-900/80 flex items-center justify-center z-20 backdrop-blur-sm">
+                        <div class="loader !border-indigo-500 !border-t-transparent w-5 h-5"></div>
+                    </div>
+                </button>
+            </div>
+
             <div class="p-4 bg-white dark:bg-dark-card border-b border-gray-100 dark:border-gray-700 shrink-0">
                 <div class="flex flex-col gap-3">
                     <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-                        <span>تعداد بخش‌ها: <b id="chunkCountDisplay" class="text-indigo-600 text-sm">Auto</b></span>
+                        <span>تعداد بخش‌ها (دستی): <b id="chunkCountDisplay" class="text-indigo-600 text-sm">Auto</b></span>
                         <input type="range" id="chunkSlider" min="1" max="20" value="1" class="w-40" oninput="updateChunkingFromSlider(this.value)">
                     </div>
                 </div>
@@ -197,8 +250,46 @@
             <div id="chunksContainer" class="flex-1 overflow-y-auto p-4 space-y-4 custom-scroll bg-gray-100 dark:bg-black/20"></div>
             <div class="p-4 bg-white dark:bg-dark-card border-t border-gray-100 dark:border-gray-700 shrink-0 flex gap-3">
                 <button onclick="startJobInUI()" class="flex-1 bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-500/20 active:scale-95 transition flex items-center justify-center gap-2">
-                    <span>شروع پردازش</span>
+                    <span>تولید صدا</span>
                     <i class="fa-solid fa-check-double"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Wizard Modal -->
+    <div id="scriptModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center transition-opacity opacity-0 px-4">
+        <div class="bg-white dark:bg-dark-card w-full max-w-sm rounded-2xl p-6 shadow-2xl transform scale-95 transition-transform border border-gray-100 dark:border-gray-700 flex flex-col">
+            <div class="flex justify-between items-center mb-4 shrink-0">
+                <h2 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2"><i class="fa-solid fa-hat-wizard text-purple-500"></i> جادوی سناریو</h2>
+                <button onclick="closeScriptModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-xs text-gray-500 dark:text-gray-400 mb-1 block">موضوع یا ایده (مثلاً: بحث درباره بیت‌کوین)</label>
+                    <textarea id="scriptTopic" rows="3" class="w-full p-3 bg-gray-50 dark:bg-dark-input dark:text-white rounded-xl border border-gray-200 dark:border-gray-600 text-sm"></textarea>
+                </div>
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <label class="text-xs text-gray-500 dark:text-gray-400 mb-1 block">شخصیت‌ها</label>
+                        <select id="scriptActors" class="w-full p-2 bg-gray-50 dark:bg-dark-input dark:text-white rounded-lg border border-gray-200 dark:border-gray-600 text-sm">
+                            <option value="2">2 نفر (مکالمه)</option>
+                            <option value="1">1 نفر (داستانی)</option>
+                        </select>
+                    </div>
+                    <div class="flex-1">
+                        <label class="text-xs text-gray-500 dark:text-gray-400 mb-1 block">طول متن</label>
+                        <select id="scriptLength" class="w-full p-2 bg-gray-50 dark:bg-dark-input dark:text-white rounded-lg border border-gray-200 dark:border-gray-600 text-sm">
+                            <option value="short">کوتاه (~100 کلمه)</option>
+                            <option value="medium" selected>متوسط (~300 کلمه)</option>
+                            <option value="long">طولانی (~600 کلمه)</option>
+                        </select>
+                    </div>
+                </div>
+                <button onclick="generateScript()" id="genScriptBtn" class="w-full bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 transition flex items-center justify-center gap-2">
+                    <span>نوشتن سناریو</span>
+                    <i class="fa-solid fa-pen-nib"></i>
+                    <div id="scriptLoader" class="loader hidden w-4 h-4"></div>
                 </button>
             </div>
         </div>
@@ -238,13 +329,13 @@
         let currentMode = 'single';
         let db;
         let activeChunks = [];
+        let smartChunkMeta = []; // Stores {role, text} from smart split
 
         // App State
         let currentJobId = null;
         let isGenerating = false;
-        let jobQueue = []; // { text, voice, index }
+        let jobQueue = []; 
         let jobResults = [];
-        let jobTone = "";
         let jobMode = "";
 
         if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(console.error)); }
@@ -258,9 +349,10 @@
         });
 
         function initDB() {
-            const r = indexedDB.open("GeminiStudioDB", 1);
+            const r = indexedDB.open("GeminiStudioDB", 2); 
             r.onupgradeneeded = e => { if (!e.target.result.objectStoreNames.contains("history")) e.target.result.createObjectStore("history", { keyPath: "id" }); };
             r.onsuccess = e => { db = e.target.result; loadHistory(); };
+            r.onerror = e => { console.error("DB Error", e); showToast("خطا در دیتابیس", true); };
         }
 
         function setMode(mode) {
@@ -269,6 +361,7 @@
             const btnSingle = document.getElementById('modeBtn-single');
             const btnMulti = document.getElementById('modeBtn-multi');
             const singleVoice = document.getElementById('singleVoiceContainer');
+            const globalTone = document.getElementById('globalToneSection');
             const multiInfo = document.getElementById('multiInfo');
 
             btnSingle.classList.remove('text-indigo-600', 'text-gray-500');
@@ -279,12 +372,14 @@
                 btnSingle.classList.add('text-indigo-600');
                 btnMulti.classList.add('text-gray-500', 'dark:text-gray-400');
                 singleVoice.classList.remove('hidden', 'opacity-0', 'h-0');
+                globalTone.classList.remove('hidden');
                 multiInfo.classList.add('hidden');
             } else {
                 indicator.style.transform = 'translateX(-100%)';
                 btnMulti.classList.add('text-indigo-600');
                 btnSingle.classList.add('text-gray-500', 'dark:text-gray-400');
                 singleVoice.classList.add('hidden', 'opacity-0', 'h-0');
+                globalTone.classList.add('hidden'); // In multi, tone is per chunk
                 multiInfo.classList.remove('hidden');
             }
         }
@@ -296,22 +391,122 @@
             document.getElementById('charCount').textContent = `${chars} کاراکتر | ${words} کلمه`; 
         }
 
-        // --- CHUNKING LOGIC ---
+        // --- SCRIPT WRITER WIZARD ---
+        function openScriptWizard() {
+            const m = document.getElementById('scriptModal');
+            m.classList.remove('hidden');
+            setTimeout(() => m.classList.remove('opacity-0', 'scale-95'), 10);
+        }
+        function closeScriptModal() {
+            const m = document.getElementById('scriptModal');
+            m.classList.add('opacity-0', 'scale-95');
+            setTimeout(() => m.classList.add('hidden'), 300);
+        }
+        async function generateScript() {
+            const topic = document.getElementById('scriptTopic').value.trim();
+            const actors = document.getElementById('scriptActors').value;
+            const len = document.getElementById('scriptLength').value;
+            
+            if(!topic) return showToast('لطفاً موضوع را وارد کنید', true);
+
+            const btn = document.getElementById('genScriptBtn');
+            const loader = document.getElementById('scriptLoader');
+            btn.disabled = true; loader.classList.remove('hidden');
+
+            let lenPrompt = "Keep it concise around 100 words.";
+            if(len === 'medium') lenPrompt = "Write around 300 words.";
+            if(len === 'long') lenPrompt = "Write a detailed script around 600 words.";
+
+            try {
+                await getWorkingKey(async (key) => {
+                    const prompt = actors === '2' 
+                        ? `Write a dialogue (script) in Persian about: "${topic}". ${lenPrompt} Format: Each speaker on a new line. Speaker A vs Speaker B. No metadata, just the lines.`
+                        : `Write a story narration in Persian about: "${topic}". ${lenPrompt} Break it into paragraphs.`;
+
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`;
+                    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
+                    const txt = (await r.json()).candidates[0].content.parts[0].text.trim();
+                    
+                    document.getElementById('textInput').value = txt;
+                    updateCounts();
+                    setMode(actors === '2' ? 'multi' : 'single');
+                    closeScriptModal();
+                    showToast('سناریو آماده شد! حالا بررسی کنید.');
+                });
+            } catch (e) { showToast(e.message, true); }
+            finally { btn.disabled = false; loader.classList.add('hidden'); }
+        }
+
+        // --- SMART CHUNKING LOGIC ---
+        async function smartSplitStory() {
+            const text = document.getElementById('textInput').value.trim();
+            if(!text) return showToast('متنی وجود ندارد', true);
+
+            const btn = document.getElementById('smartSplitBtn');
+            const loader = document.getElementById('smartLoader');
+            btn.disabled = true; loader.classList.remove('hidden');
+            
+            try {
+                await getWorkingKey(async (key) => {
+                    const prompt = `Analyze this Persian story. Split it into parts based on who is speaking (Narrator vs Characters). Identify the speaker for each part. 
+                    Return a JSON Array ONLY. Format: [{"role": "SpeakerName", "text": "..."}]. 
+                    Merge consecutive lines by same speaker. Do NOT translate. Keep exact Persian text.
+                    Text:
+                    ${text.substring(0, 8000)}`; 
+
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`;
+                    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ 
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { responseMimeType: "application/json" }
+                    }) });
+                    
+                    const data = await r.json();
+                    const result = JSON.parse(data.candidates[0].content.parts[0].text);
+                    
+                    if(Array.isArray(result) && result.length > 0) {
+                        smartChunkMeta = result; 
+                        activeChunks = result.map(i => i.text); 
+                        
+                        document.getElementById('chunkSlider').value = result.length;
+                        document.getElementById('chunkCountDisplay').textContent = result.length + " (AI)";
+                        
+                        renderChunks(true); 
+                        showToast('تفکیک هوشمند انجام شد! 🪄');
+                    } else {
+                        throw new Error("ساختار پاسخ نامعتبر بود");
+                    }
+                });
+            } catch (e) {
+                console.error(e);
+                showToast('خطا در آنالیز هوشمند: ' + e.message, true);
+            } finally {
+                btn.disabled = false; loader.classList.add('hidden');
+            }
+        }
+
+        // --- STANDARD CHUNKING LOGIC ---
         function splitText(text, count) {
+            let chunks = [];
+            
+            if (currentMode === 'multi') {
+                const lines = text.split(/\n+/).filter(l => l.trim().length > 0);
+                if (lines.length >= count) {
+                    const perChunk = Math.ceil(lines.length / count);
+                    for (let i = 0; i < lines.length; i += perChunk) {
+                        chunks.push(lines.slice(i, i + perChunk).join(' '));
+                    }
+                    return chunks.slice(0, count);
+                }
+            }
             if (count === 1) return [text];
             const sentences = text.match(/[^.?!؟\n]+[.?!؟\n]*/g) || [text];
             const totalLen = text.length; const avgLen = totalLen / count;
-            let chunks = []; let currentChunk = "";
+            let currentChunk = "";
+            chunks = [];
             for (let s of sentences) {
                 if ((currentChunk.length + s.length) > avgLen && chunks.length < count - 1) { chunks.push(currentChunk.trim()); currentChunk = s; } else { currentChunk += s; }
             }
             if (currentChunk.trim()) chunks.push(currentChunk.trim());
-            while (chunks.length < count) {
-                const largestIdx = chunks.reduce((iMax, x, i, arr) => x.length > arr[iMax].length ? i : iMax, 0);
-                const toSplit = chunks[largestIdx]; const mid = Math.floor(toSplit.length / 2);
-                const spaceNearMid = toSplit.indexOf(' ', mid); const splitPoint = spaceNearMid !== -1 ? spaceNearMid : mid;
-                chunks.splice(largestIdx, 1, toSplit.substring(0, splitPoint).trim(), toSplit.substring(splitPoint).trim());
-            }
             return chunks;
         }
 
@@ -324,8 +519,14 @@
             modal.classList.remove('hidden');
             setTimeout(() => modal.classList.remove('opacity-0', 'scale-95'), 10);
 
+            smartChunkMeta = []; 
+
             let initialCount = 1;
-            if (text.length > 300) initialCount = Math.ceil(text.length / 300);
+            if (currentMode === 'multi') {
+                 initialCount = Math.min(20, Math.max(2, text.split(/\n+/).length));
+            } else {
+                 if (text.length > 300) initialCount = Math.ceil(text.length / 300);
+            }
             
             const slider = document.getElementById('chunkSlider');
             slider.value = initialCount;
@@ -336,31 +537,66 @@
         function updateChunkingFromSlider(val) {
             document.getElementById('chunkCountDisplay').textContent = val;
             const text = document.getElementById('textInput').value.trim();
+            smartChunkMeta = []; 
             activeChunks = splitText(text, parseInt(val));
-            renderChunks();
+            renderChunks(false);
         }
 
-        function renderChunks() {
+        function renderChunks(isSmart = false) {
             const container = document.getElementById('chunksContainer');
             container.innerHTML = '';
             
             const globalVoice = document.getElementById('voiceSelect').value;
             VOICES.sort((a,b)=>a.name.localeCompare(b.name));
 
+            let roleToVoiceMap = {};
+            let availableVoices = [...VOICES].filter(v => v.name !== "Kore"); 
+            let voiceIndex = 0;
+
             activeChunks.forEach((chunkText, idx) => {
                 const div = document.createElement('div');
                 div.className = "bg-white dark:bg-dark-input rounded-xl p-3 border border-gray-200 dark:border-gray-600 shadow-sm animate-fade-in group relative focus-within:ring-2 focus-within:ring-indigo-400";
                 
                 let defaultVoice = globalVoice;
-                if(currentMode === 'multi') { if (idx % 2 !== 0) defaultVoice = "Fenrir"; }
+                let roleName = "بخش " + (idx + 1);
+                
+                if (isSmart && smartChunkMeta[idx]) {
+                    const meta = smartChunkMeta[idx];
+                    roleName = meta.role;
+                    
+                    if (roleName.includes("راوی") || roleName.toLowerCase().includes("narrator")) {
+                        defaultVoice = "Kore";
+                    } else {
+                        if (!roleToVoiceMap[roleName]) {
+                            if (voiceIndex < availableVoices.length) {
+                                roleToVoiceMap[roleName] = availableVoices[voiceIndex].name;
+                                voiceIndex++;
+                            } else {
+                                roleToVoiceMap[roleName] = "Fenrir"; 
+                            }
+                        }
+                        defaultVoice = roleToVoiceMap[roleName];
+                    }
+                } else if(currentMode === 'multi') { 
+                    if (idx % 2 === 0) defaultVoice = "Kore";
+                    else defaultVoice = "Fenrir"; 
+                }
+
                 let optionsHtml = VOICES.map(v => `<option value="${v.name}" ${v.name === defaultVoice ? 'selected' : ''}>${v.name}</option>`).join('');
+                
+                const badgeHtml = isSmart ? `<span class="role-badge"><i class="fa-solid fa-user-tag text-[8px]"></i> ${roleName}</span>` : `<span class="text-[10px] text-gray-400 shrink-0 font-bold bg-gray-100 dark:bg-gray-700 px-2 rounded-md">${roleName}</span>`;
 
                 div.innerHTML = `
-                    <div class="flex justify-between items-center mb-2 gap-2">
-                        <span class="text-[10px] text-gray-400 shrink-0">بخش ${idx + 1}</span>
-                        <select class="chunk-voice-select text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-none rounded-lg py-1 px-2 cursor-pointer focus:ring-2 focus:ring-indigo-500">${optionsHtml}</select>
+                    <div class="flex flex-col gap-2 mb-2">
+                        <div class="flex justify-between items-center">
+                            ${badgeHtml}
+                            <div class="flex gap-1 flex-1 justify-end">
+                                <input type="text" class="chunk-tone-input text-xs bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 rounded-lg py-1 px-2 w-1/3 outline-none focus:border-indigo-500 placeholder:text-gray-400 text-left font-mono" placeholder="لحن (Sad...)" value="${currentMode === 'single' ? '' : ''}">
+                                <select class="chunk-voice-select text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200 border-none rounded-lg py-1 px-2 cursor-pointer focus:ring-1 focus:ring-indigo-500 font-bold max-w-[100px]">${optionsHtml}</select>
+                            </div>
+                        </div>
                     </div>
-                    <textarea class="chunk-editor w-full bg-transparent border-none outline-none resize-none text-sm text-gray-700 dark:text-gray-200 leading-6 font-medium" rows="3" oninput="activeChunks[${idx}] = this.value">${chunkText}</textarea>
+                    <textarea class="chunk-editor w-full bg-transparent border-none outline-none resize-none text-sm text-gray-700 dark:text-gray-200 leading-6 font-medium border-t border-gray-100 dark:border-gray-700 pt-2" rows="3" oninput="activeChunks[${idx}] = this.value">${chunkText}</textarea>
                 `;
                 container.appendChild(div);
             });
@@ -377,10 +613,12 @@
         async function startJobInUI() {
             const editors = document.querySelectorAll('.chunk-editor');
             const voiceSelects = document.querySelectorAll('.chunk-voice-select');
+            const toneInputs = document.querySelectorAll('.chunk-tone-input');
             
             jobQueue = [];
             jobResults = new Array(editors.length).fill(null);
-            jobTone = document.getElementById('toneInput').value.trim();
+            
+            const globalTone = document.getElementById('toneInput').value.trim();
             jobMode = currentMode;
             currentJobId = Date.now();
             const fullText = Array.from(editors).map(e => e.value.trim()).join('\n');
@@ -388,7 +626,10 @@
             editors.forEach((ed, i) => {
                 const txt = ed.value.trim();
                 const v = voiceSelects[i].value;
-                if(txt) jobQueue.push({ text: txt, voice: v, index: i });
+                let t = toneInputs[i].value.trim();
+                if(!t && currentMode === 'single') t = globalTone;
+
+                if(txt) jobQueue.push({ text: txt, voice: v, tone: t, index: i });
             });
 
             closeChunkModal();
@@ -402,7 +643,7 @@
             projectDiv.innerHTML = `
                 <div class="flex justify-between items-start">
                     <div class="flex-1 overflow-hidden">
-                        <div class="flex items-center gap-2 mb-1">
+                        <div class="flex items-center gap-2 mb-1" id="status-badge-${currentJobId}">
                             <i class="fa-solid fa-bolt text-yellow-500 animate-pulse"></i>
                             <span class="text-[10px] bg-indigo-50 dark:bg-indigo-900 px-2 rounded-full text-indigo-600 dark:text-indigo-300">در حال تولید...</span>
                         </div>
@@ -421,7 +662,7 @@
                                 <i class="fa-solid fa-spinner fa-spin text-gray-400 text-xs" id="part-icon-${currentJobId}-${task.index}"></i>
                             </div>
                             <div class="flex-1 overflow-hidden">
-                                <p class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-0.5">${task.voice}</p>
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-0.5">${task.voice} ${task.tone ? `<span class="text-indigo-400">(${task.tone})</span>` : ''}</p>
                                 <p class="text-xs text-gray-700 dark:text-gray-300 truncate">${task.text}</p>
                             </div>
                         </div>
@@ -436,7 +677,10 @@
         }
 
         async function processQueueUI() {
-            if (jobQueue.length === 0) { finalizeJobUI(); return; }
+            if (jobQueue.length === 0) { 
+                setTimeout(finalizeJobUI, 500); 
+                return; 
+            }
             const task = jobQueue.shift();
             
             const icon = document.getElementById(`part-icon-${currentJobId}-${task.index}`);
@@ -444,19 +688,41 @@
 
             try {
                 let prompt = task.text;
-                if (jobTone) prompt = `(Style: ${jobTone}) ${task.text}`;
-                const blob = await getAudioFromAPI(prompt, task.voice);
+                if (task.tone) prompt = `(Style: ${task.tone}) ${task.text}`;
                 
-                const partData = { blob: blob, voice: task.voice, text: task.text };
+                const blob = await getAudioFromAPI(prompt, task.voice);
+                const duration = await getBlobDuration(blob);
+
+                const partData = { blob: blob, voice: task.voice, text: task.text, tone: task.tone, duration: duration };
                 jobResults[task.index] = partData;
                 updatePartUI(task.index, partData);
-                setTimeout(processQueueUI, 300);
             } catch (e) {
                 console.error(e);
-                showToast(`خطا در بخش ${task.index + 1}`, true);
+                showToast(`خطا در بخش ${task.index + 1}: ${e.message}`, true);
                 if(icon) icon.className = "fa-solid fa-triangle-exclamation text-red-500 text-xs";
-                setTimeout(processQueueUI, 500);
+                jobResults[task.index] = { failed: true, text: task.text };
+            } finally {
+                setTimeout(processQueueUI, 300);
             }
+        }
+
+        function getBlobDuration(blob) {
+            return new Promise(resolve => {
+                const tempAudio = new Audio(URL.createObjectURL(blob));
+                tempAudio.onloadedmetadata = () => {
+                    if(tempAudio.duration === Infinity) {
+                        tempAudio.currentTime = 1e101;
+                        tempAudio.ontimeupdate = function() {
+                            this.ontimeupdate = null;
+                            resolve(this.duration); 
+                            this.currentTime = 0;
+                        }
+                    } else {
+                        resolve(tempAudio.duration);
+                    }
+                };
+                setTimeout(() => resolve(0), 2000); 
+            });
         }
 
         function updatePartUI(index, partData) {
@@ -464,14 +730,18 @@
             if(!row) return;
 
             const url = URL.createObjectURL(partData.blob);
-            row.className = "flex items-center gap-3 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900 bg-white dark:bg-gray-700 transition-all shadow-sm";
+            row.className = "part-row flex items-center gap-3 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900 bg-white dark:bg-gray-700 transition-all shadow-sm";
+            row.id = `part-row-${currentJobId}-${index}`; 
             row.innerHTML = `
                 <button onclick="playSinglePart(this, '${url}')" class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0 hover:bg-indigo-600 hover:text-white transition group">
                     <i class="fa-solid fa-play text-[10px] ml-0.5"></i>
                 </button>
                 <div class="flex-1 overflow-hidden">
-                    <div class="flex justify-between items-center">
-                        <p class="text-[10px] text-indigo-500 font-bold mb-0.5">${partData.voice}</p>
+                    <div class="flex justify-between items-center mb-0.5">
+                        <div class="flex items-center gap-2">
+                             <p class="text-[10px] text-indigo-500 font-bold">${partData.voice}</p>
+                             <span class="text-[9px] bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-300 px-1.5 rounded-md font-mono">${formatTime(partData.duration)}</span>
+                        </div>
                         <a href="${url}" download="part_${index+1}.wav" class="text-gray-300 hover:text-gray-500 px-1"><i class="fa-solid fa-download text-[10px]"></i></a>
                     </div>
                     <p class="text-xs text-gray-700 dark:text-gray-300 truncate" dir="auto">${partData.text}</p>
@@ -480,15 +750,31 @@
         }
 
         async function finalizeJobUI() {
-            const validParts = jobResults.filter(r => r && r.blob);
-            if (validParts.length === 0) { showToast('تولید شکست خورد', true); isGenerating = false; return; }
+            try {
+                const validParts = jobResults.filter(r => r && !r.failed);
+                if (validParts.length === 0) { 
+                    throw new Error("هیچ بخشی با موفقیت تولید نشد."); 
+                }
 
-            const audioBuffers = await Promise.all(validParts.map(p => p.blob.arrayBuffer()));
-            const mergedBuffer = mergeAudioBuffers(audioBuffers);
-            const mergedBlob = new Blob([mergedBuffer], { type: 'audio/wav' });
+                // Visual update
+                const badge = document.getElementById(`status-badge-${currentJobId}`);
+                if(badge) badge.innerHTML = `<i class="fa-solid fa-rotate fa-spin text-blue-500"></i><span class="text-[10px] text-blue-500">میکس نهایی...</span>`;
 
-            const fullText = validParts.map(p => p.text).join('\n\n');
-            saveToHistory(fullText, jobTone, validParts, jobMode, mergedBlob);
+                const audioBuffers = await Promise.all(validParts.map(p => p.blob.arrayBuffer()));
+                const mergedBuffer = mergeAudioBuffers(audioBuffers);
+                const mergedBlob = new Blob([mergedBuffer], { type: 'audio/wav' });
+
+                const fullText = validParts.map(p => p.text).join('\n\n');
+                
+                saveToHistory(fullText, jobResults, jobMode, mergedBlob);
+
+            } catch (e) {
+                console.error("Finalization Error:", e);
+                showToast(e.message || 'خطا در میکس نهایی', true);
+                isGenerating = false;
+                const badge = document.getElementById(`status-badge-${currentJobId}`);
+                if(badge) badge.innerHTML = `<i class="fa-solid fa-circle-xmark text-red-500"></i><span class="text-[10px] text-red-500">خطا در میکس</span>`;
+            }
         }
 
         function mergeAudioBuffers(buffers) {
@@ -516,20 +802,66 @@
             return result.buffer;
         }
 
-        function saveToHistory(fullText, tone, parts, mode, mergedBlob) {
+        function saveToHistory(fullText, parts, mode, mergedBlob) {
             if(!db) return;
+            let currentTime = 0;
+            const partsWithTiming = parts.map(p => {
+                if(p.failed) return p;
+                const start = currentTime;
+                currentTime += (p.duration || 0);
+                return { ...p, startTime: start, endTime: currentTime };
+            });
+
             const t = db.transaction(["history"], "readwrite");
-            t.objectStore("history").add({ 
+            
+            t.onerror = (event) => {
+                console.error("Save Error:", event);
+                isGenerating = false;
+                const url = URL.createObjectURL(mergedBlob);
+                const badge = document.getElementById(`status-badge-${currentJobId}`);
+                if(badge) {
+                    badge.innerHTML = `<a href="${url}" download="mix_rescue.wav" class="bg-red-500 text-white px-2 py-1 rounded text-[10px]">دانلود اضطراری (حافظه پر است)</a>`;
+                }
+                showToast("خطا در ذخیره. حافظه پر است!", true);
+            };
+
+            const req = t.objectStore("history").add({ 
                 id: Date.now(), 
-                fullText, tone, parts, mode, 
+                fullText, parts: partsWithTiming, mode, 
                 mergedBlob: mergedBlob, 
                 date: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) 
             });
+
             t.oncomplete = () => { 
                 isGenerating = false; 
                 showToast('پروژه ذخیره و میکس شد'); 
                 loadHistory(); 
             };
+        }
+
+        function downloadAsMp3(blob, filename) {
+             showToast('در حال تبدیل به MP3...', false);
+             const reader = new FileReader();
+             reader.onload = function(e) {
+                 const wavData = new Int16Array(e.target.result.slice(44)); 
+                 const mp3Data = [];
+                 const samples = wavData; 
+                 const mp3encoder = new lamejs.Mp3Encoder(1, 24000, 128); 
+                 const remaining = samples.length;
+                 const maxSamples = 1152;
+                 for (let i = 0; i < remaining; i += maxSamples) {
+                     const mono = samples.subarray(i, i + maxSamples);
+                     const mp3buf = mp3encoder.encodeBuffer(mono);
+                     if (mp3buf.length > 0) mp3Data.push(mp3buf);
+                 }
+                 const d = mp3encoder.flush();
+                 if(d.length > 0) mp3Data.push(d);
+                 const mp3Blob = new Blob(mp3Data, {type: 'audio/mp3'});
+                 const a = document.createElement('a');
+                 a.href = URL.createObjectURL(mp3Blob); a.download = filename; a.click();
+                 showToast('دانلود انجام شد');
+             };
+             reader.readAsArrayBuffer(blob);
         }
 
         function loadHistory() {
@@ -547,54 +879,63 @@
                     const modeIcon = isMulti ? '<i class="fa-solid fa-users-rays text-pink-500"></i>' : '<i class="fa-solid fa-user text-indigo-500"></i>';
                     
                     const mergedUrl = item.mergedBlob ? URL.createObjectURL(item.mergedBlob) : null;
+                    
+                    // Calculate Total Duration
+                    const totalDuration = item.parts.reduce((acc, p) => acc + (p.duration || 0), 0);
+                    const formattedTotal = formatTime(totalDuration);
 
                     div.innerHTML = `
                         <div class="flex justify-between items-start">
                             <div class="flex-1 overflow-hidden">
                                 <div class="flex items-center gap-2 mb-1">${modeIcon}<span class="text-[10px] bg-gray-100 dark:bg-gray-700 px-2 rounded-full text-gray-500">${item.parts.length} بخش</span><span class="text-[10px] text-gray-400">${item.date}</span></div>
-                                <p class="text-xs font-bold text-gray-800 dark:text-gray-200 truncate" dir="auto">${item.fullText}</p>
+                                <p class="text-xs font-bold text-gray-800 dark:text-gray-200 truncate" dir="auto">${item.fullText.substring(0, 50)}...</p>
                             </div>
                             <button onclick="delHist(${item.id})" class="text-gray-300 hover:text-red-500 px-2"><i class="fa-solid fa-trash"></i></button>
                         </div>
 
                         ${mergedUrl ? `
-                        <div class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl p-3 flex flex-col gap-2">
-                            <div class="flex justify-between items-center mb-1">
-                                <span class="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">میکس نهایی (کل پروژه)</span>
-                                <a href="${mergedUrl}" download="full_mix_${item.id}.wav" class="text-[10px] text-indigo-500 hover:underline"><i class="fa-solid fa-download"></i> دانلود یکجا</a>
+                        <div class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl p-3 flex flex-col gap-2 relative overflow-hidden">
+                            <div class="flex justify-between items-center mb-1 relative z-10">
+                                <span class="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1"><i class="fa-solid fa-music"></i> میکس نهایی <span class="bg-indigo-200 dark:bg-indigo-800 text-indigo-800 dark:text-indigo-200 px-1.5 rounded-md text-[9px] font-mono">${formattedTotal}</span></span>
+                                <div class="flex gap-2">
+                                     <button onclick="downloadAsMp3(retrieveBlob(${item.id}), 'mix_${item.id}.mp3')" class="text-[10px] bg-white dark:bg-indigo-800 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-700 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white transition">MP3</button>
+                                     <a href="${mergedUrl}" download="mix_${item.id}.wav" class="text-[10px] bg-white dark:bg-indigo-800 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-700 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white transition">WAV</a>
+                                </div>
                             </div>
-                            <div class="flex items-center gap-3">
+                            <div class="flex items-center gap-3 relative z-10">
                                 <button onclick="toggleMainPlay('${mergedUrl}', this, ${item.id})" id="mainPlay-${item.id}" class="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/30 transition"><i class="fa-solid fa-play ml-0.5"></i></button>
                                 <div class="flex-1 flex flex-col justify-center">
                                     <input type="range" id="seek-${item.id}" min="0" max="100" value="0" step="0.1" class="w-full" oninput="seekMain(${item.id}, this.value)">
                                     <div class="flex justify-between text-[10px] text-gray-400 mt-1">
                                         <span id="time-${item.id}">0:00</span>
                                         <div class="flex items-center gap-2">
-                                            <select onchange="changeSpeed(${item.id}, this.value)" class="bg-transparent border-none text-xs font-mono text-gray-500 focus:text-indigo-600 cursor-pointer outline-none p-0">
-                                                <option value="0.5">0.5x</option>
-                                                <option value="1" selected>1.0x</option>
-                                                <option value="1.25">1.25x</option>
-                                                <option value="1.5">1.5x</option>
-                                                <option value="2">2.0x</option>
-                                            </select>
+                                            <span class="text-[9px] opacity-60">Karaoke Active</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>` : ''}
 
-                        <div class="space-y-1.5 max-h-60 overflow-y-auto custom-scroll pr-1">
+                        <div class="space-y-1.5 max-h-60 overflow-y-auto custom-scroll pr-1" id="parts-list-${item.id}">
                             ${item.parts.map((part, i) => {
+                                if(part.failed) return `<div class="text-xs text-red-400 p-2">بخش ${i+1} خطا داشت</div>`;
                                 const pUrl = URL.createObjectURL(part.blob);
+                                const duration = formatTime(part.duration || 0);
                                 return `
-                                <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 border border-transparent hover:border-gray-100 transition-all group/part">
+                                <div id="part-item-${item.id}-${i}" class="part-item flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 border border-transparent hover:border-gray-100 transition-all group/part">
                                     <button onclick="playSinglePart(this, '${pUrl}')" class="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 flex items-center justify-center shrink-0 hover:bg-indigo-500 hover:text-white transition">
                                         <i class="fa-solid fa-play text-[9px] ml-0.5"></i>
                                     </button>
                                     <div class="flex-1 overflow-hidden">
-                                        <div class="flex justify-between items-center">
-                                            <p class="text-[9px] text-gray-400 font-bold mb-0.5">${part.voice} <span class="opacity-50 font-normal">| بخش ${i+1}</span></p>
-                                            <a href="${pUrl}" download="part_${i+1}.wav" class="opacity-0 group-hover/part:opacity-100 text-gray-300 hover:text-indigo-500 px-1 transition-opacity"><i class="fa-solid fa-download text-[10px]"></i></a>
+                                        <div class="flex justify-between items-center mb-0.5">
+                                            <div class="flex items-center gap-2">
+                                                <p class="text-[9px] text-gray-400 font-bold flex gap-1 items-center">
+                                                    ${part.voice} 
+                                                    ${part.tone ? `<span class="bg-indigo-50 dark:bg-indigo-900/50 text-indigo-500 px-1 rounded">${part.tone}</span>` : ''}
+                                                </p>
+                                                <span class="text-[9px] bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-300 px-1.5 rounded-md font-mono">${duration}</span>
+                                            </div>
+                                            <span class="text-[9px] opacity-50 text-gray-400">#${i+1}</span>
                                         </div>
                                         <p class="text-[11px] text-gray-600 dark:text-gray-300 truncate" dir="auto">${part.text}</p>
                                     </div>
@@ -603,49 +944,83 @@
                         </div>
                     `;
                     list.appendChild(div);
+                    div.dataset.parts = JSON.stringify(item.parts.map(p => ({start: p.startTime, end: p.endTime})));
                 });
             };
+        }
+
+        function retrieveBlob(id) {
+             const h = document.getElementById(`mainPlay-${id}`);
+             return null; 
+        }
+        window.downloadAsMp3 = function(blobOrNull, name) {
+             const id = parseInt(name.split('_')[1]);
+             const req = db.transaction(["history"], "readonly").objectStore("history").get(id);
+             req.onsuccess = () => {
+                 if(req.result && req.result.mergedBlob) {
+                     downloadAsMp3Internal(req.result.mergedBlob, name);
+                 }
+             }
+        }
+        function downloadAsMp3Internal(blob, filename) {
+             showToast('در حال تبدیل به MP3...', false);
+             const reader = new FileReader();
+             reader.onload = function(e) {
+                 const wavData = new Int16Array(e.target.result.slice(44)); 
+                 const mp3Data = [];
+                 const samples = wavData; 
+                 const mp3encoder = new lamejs.Mp3Encoder(1, 24000, 128); 
+                 const remaining = samples.length;
+                 const maxSamples = 1152;
+                 for (let i = 0; i < remaining; i += maxSamples) {
+                     const mono = samples.subarray(i, i + maxSamples);
+                     const mp3buf = mp3encoder.encodeBuffer(mono);
+                     if (mp3buf.length > 0) mp3Data.push(mp3buf);
+                 }
+                 const d = mp3encoder.flush();
+                 if(d.length > 0) mp3Data.push(d);
+                 const mp3Blob = new Blob(mp3Data, {type: 'audio/mp3'});
+                 const a = document.createElement('a');
+                 a.href = URL.createObjectURL(mp3Blob); a.download = filename; a.click();
+                 showToast('دانلود انجام شد');
+             };
+             reader.readAsArrayBuffer(blob);
         }
 
         // --- PLAYBACK ENGINES ---
         let mainAudio = new Audio();
         let currentMainId = null;
+        let animationFrameId;
 
         function toggleMainPlay(url, btn, id) {
             const icon = btn.querySelector('i');
-            
-            // If clicking the same button that is currently playing
+            const partsList = document.getElementById(`parts-list-${id}`);
+            const partsMeta = partsList.parentElement.dataset.parts ? JSON.parse(partsList.parentElement.dataset.parts) : [];
+
             if (currentMainId === id && !mainAudio.paused) {
                 mainAudio.pause();
                 icon.className = 'fa-solid fa-play ml-0.5';
+                cancelAnimationFrame(animationFrameId);
                 return;
             }
             
-            // If clicking same button but it was paused
             if (currentMainId === id && mainAudio.paused) {
-                // Stop any single audio first
-                if(!singleAudio.paused) {
-                     singleAudio.pause();
-                     if(currentSingleBtn) currentSingleBtn.querySelector('i').className = 'fa-solid fa-play text-[9px] ml-0.5';
-                }
+                if(!singleAudio.paused) singleAudio.pause();
                 mainAudio.play();
                 icon.className = 'fa-solid fa-pause';
+                karaokeLoop(id, partsMeta);
                 return;
             }
 
-            // New Track
             mainAudio.pause();
+            cancelAnimationFrame(animationFrameId);
             
-            // Reset icons
+            document.querySelectorAll('.karaoke-active').forEach(el => el.classList.remove('karaoke-active'));
             if(currentMainId !== null) {
                 const prevBtn = document.getElementById(`mainPlay-${currentMainId}`);
                 if(prevBtn) prevBtn.querySelector('i').className = 'fa-solid fa-play ml-0.5';
             }
-            if(!singleAudio.paused) {
-                 singleAudio.pause();
-                 if(currentSingleBtn) currentSingleBtn.querySelector('i').className = 'fa-solid fa-play text-[9px] ml-0.5';
-            }
-
+            
             mainAudio.src = url;
             currentMainId = id;
             
@@ -653,66 +1028,78 @@
             const timeDisplay = document.getElementById(`time-${id}`);
             
             mainAudio.onloadedmetadata = () => { seekBar.max = mainAudio.duration; };
-            mainAudio.ontimeupdate = () => { seekBar.value = mainAudio.currentTime; timeDisplay.textContent = formatTime(mainAudio.currentTime); };
-            mainAudio.onended = () => { icon.className = 'fa-solid fa-play ml-0.5'; seekBar.value = 0; };
+            mainAudio.onended = () => { 
+                icon.className = 'fa-solid fa-play ml-0.5'; 
+                seekBar.value = 0; 
+                cancelAnimationFrame(animationFrameId);
+                document.querySelectorAll('.karaoke-active').forEach(el => el.classList.remove('karaoke-active'));
+            };
             
             mainAudio.play();
             icon.className = 'fa-solid fa-pause';
+            karaokeLoop(id, partsMeta);
+        }
+
+        function karaokeLoop(id, parts) {
+            const seekBar = document.getElementById(`seek-${id}`);
+            const timeDisplay = document.getElementById(`time-${id}`);
+            
+            const update = () => {
+                if(mainAudio.paused || currentMainId !== id) return;
+                
+                const t = mainAudio.currentTime;
+                seekBar.value = t;
+                timeDisplay.textContent = formatTime(t);
+
+                parts.forEach((p, idx) => {
+                    const el = document.getElementById(`part-item-${id}-${idx}`);
+                    if (el) {
+                        if (t >= p.start && t < p.end) {
+                            if(!el.classList.contains('karaoke-active')) {
+                                document.querySelectorAll(`#parts-list-${id} .karaoke-active`).forEach(e => e.classList.remove('karaoke-active'));
+                                el.classList.add('karaoke-active');
+                                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                        }
+                    }
+                });
+
+                animationFrameId = requestAnimationFrame(update);
+            };
+            update();
         }
 
         function seekMain(id, val) {
             if (currentMainId === id) mainAudio.currentTime = val;
         }
 
-        function changeSpeed(id, val) {
-            if (currentMainId === id) mainAudio.playbackRate = val;
-        }
-
-        // --- SINGLE PART PLAYER WITH TOGGLE ---
+        // --- SINGLE PART PLAYER ---
         let singleAudio = new Audio();
         let currentSingleBtn = null;
 
         function playSinglePart(btn, url) {
             const icon = btn.querySelector('i');
-
-            // 1. Check if same URL
             if (singleAudio.src === url) {
                 if (!singleAudio.paused) {
                     singleAudio.pause();
                     icon.className = 'fa-solid fa-play text-[9px] ml-0.5';
                 } else {
-                    // Stop main if playing
-                    if (!mainAudio.paused) {
-                        mainAudio.pause();
-                        if(currentMainId) document.getElementById(`mainPlay-${currentMainId}`).querySelector('i').className = 'fa-solid fa-play ml-0.5';
-                    }
+                    if (!mainAudio.paused) mainAudio.pause();
                     singleAudio.play();
                     icon.className = 'fa-solid fa-pause text-[9px]';
                 }
                 return;
             }
-
-            // 2. New URL - Reset previous states
-            if (currentSingleBtn && currentSingleBtn !== btn) {
-                const prevIcon = currentSingleBtn.querySelector('i');
-                if(prevIcon) prevIcon.className = 'fa-solid fa-play text-[9px] ml-0.5';
-            }
-            
+            if (currentSingleBtn && currentSingleBtn !== btn) currentSingleBtn.querySelector('i').className = 'fa-solid fa-play text-[9px] ml-0.5';
             if (!mainAudio.paused) {
-                mainAudio.pause();
-                if(currentMainId) document.getElementById(`mainPlay-${currentMainId}`).querySelector('i').className = 'fa-solid fa-play ml-0.5';
+                 mainAudio.pause();
+                 if(currentMainId) document.getElementById(`mainPlay-${currentMainId}`).querySelector('i').className = 'fa-solid fa-play ml-0.5';
             }
-
             singleAudio.src = url;
             singleAudio.play();
             currentSingleBtn = btn;
-            
             icon.className = 'fa-solid fa-pause text-[9px]';
-
-            singleAudio.onended = () => {
-                icon.className = 'fa-solid fa-play text-[9px] ml-0.5';
-                currentSingleBtn = null;
-            };
+            singleAudio.onended = () => { icon.className = 'fa-solid fa-play text-[9px] ml-0.5'; currentSingleBtn = null; };
         }
 
         function formatTime(s) {
@@ -722,7 +1109,6 @@
             return `${m}:${sec < 10 ? '0'+sec : sec}`;
         }
 
-        // Utils
         function toggleVoiceList() { const l=document.getElementById('voiceListContainer'),a=document.getElementById('voiceArrow'),o=l.classList.contains('open'); l.classList.toggle('open'); a.style.transform=!o?'rotate(180deg)':'rotate(0deg)'; }
         function populateVoiceList() { 
             const c=document.getElementById('voiceListInner'),h=document.getElementById('voiceSelect'); c.innerHTML=''; 
@@ -730,6 +1116,7 @@
             VOICES.forEach(v=>{ const i=document.createElement('div'),s=v.name===h.value; i.className=`voice-item p-2 rounded-lg cursor-pointer flex justify-between items-center transition border border-transparent hover:bg-gray-100 dark:hover:bg-gray-700 ${s?'selected':''}`; i.onclick=(e)=>{if(e.target.closest('.test-btn'))return;document.getElementById('voiceSelect').value=v.name;document.getElementById('selectedVoiceName').textContent=v.name;document.getElementById('selectedVoiceDesc').textContent=`(${v.desc})`;toggleVoiceList();populateVoiceList();}; i.innerHTML=`<div class="flex items-center gap-2"><span class="text-sm font-bold text-gray-700 dark:text-gray-300 font-mono">${v.name}</span><span class="text-xs text-gray-400">(${v.desc})</span></div><button class="test-btn p-1.5 rounded-full text-indigo-500 hover:bg-indigo-100 dark:bg-opacity-20 transition flex items-center justify-center w-7 h-7" title="تست صدا" onclick="testVoice('${v.name}',this)"><i class="fa-solid fa-play text-[10px]"></i></button>`; c.appendChild(i);}); 
         }
         function populateTonePresets() { const c=document.getElementById('tonePresets'); TONE_PRESETS.forEach(t=>{const b=document.createElement('button');b.className="snap-start shrink-0 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-[11px] text-gray-600 dark:text-gray-300 hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-2 shadow-sm min-w-[max-content]";b.innerHTML=`<i class="${t.icon}"></i> ${t.label}`;b.onclick=()=>{document.getElementById('toneInput').value=t.value;};c.appendChild(b);});c.appendChild(document.createElement('div')).className="w-4 shrink-0"; }
+        
         async function getAudioFromAPI(text, voice) {
             return await getWorkingKey(async (key) => {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${key}`;
