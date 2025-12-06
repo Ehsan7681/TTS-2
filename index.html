@@ -231,7 +231,7 @@
                 <button onclick="smartSplitStory()" id="smartSplitBtn" class="w-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 py-2 rounded-xl transition flex items-center justify-center gap-2 text-sm font-bold shadow-sm relative overflow-hidden group">
                     <span class="relative z-10 flex items-center gap-2">
                         <i class="fa-solid fa-wand-magic-sparkles text-pink-500"></i>
-                        آنالیز و تفکیک هوشمند داستان (AI)
+                        آنالیز هوشمند: تفکیک نقش و لحن (AI)
                     </span>
                     <div id="smartLoader" class="hidden absolute inset-0 bg-indigo-50/80 dark:bg-indigo-900/80 flex items-center justify-center z-20 backdrop-blur-sm">
                         <div class="loader !border-indigo-500 !border-t-transparent w-5 h-5"></div>
@@ -329,7 +329,7 @@
         let currentMode = 'single';
         let db;
         let activeChunks = [];
-        let smartChunkMeta = []; // Stores {role, text} from smart split
+        let smartChunkMeta = []; // Stores {role, text, tone}
 
         // App State
         let currentJobId = null;
@@ -448,9 +448,13 @@
             
             try {
                 await getWorkingKey(async (key) => {
-                    const prompt = `Analyze this Persian story. Split it into parts based on who is speaking (Narrator vs Characters). Identify the speaker for each part. 
-                    Return a JSON Array ONLY. Format: [{"role": "SpeakerName", "text": "..."}]. 
-                    Merge consecutive lines by same speaker. Do NOT translate. Keep exact Persian text.
+                    const prompt = `Analyze this Persian story for a Text-to-Speech engine.
+                    1. Split it into parts based on who is speaking (Narrator vs Characters).
+                    2. Identify the speaker for each part.
+                    3. Determine the emotion/tone for that specific part based on the context (e.g., Sad, Happy, Angry, Whispering, Excited, Normal, Storytelling).
+                    4. Return a JSON Array ONLY. 
+                    Format: [{"role": "SpeakerName", "text": "...", "tone": "English Adjectives for TTS (e.g., 'Sad, Slow' or 'Excited, Fast')"}].
+                    Merge consecutive lines by same speaker. Do NOT translate the text. Keep exact Persian text.
                     Text:
                     ${text.substring(0, 8000)}`; 
 
@@ -471,7 +475,7 @@
                         document.getElementById('chunkCountDisplay').textContent = result.length + " (AI)";
                         
                         renderChunks(true); 
-                        showToast('تفکیک هوشمند انجام شد! 🪄');
+                        showToast('تفکیک هوشمند با لحن انجام شد! 🪄');
                     } else {
                         throw new Error("ساختار پاسخ نامعتبر بود");
                     }
@@ -559,10 +563,12 @@
                 
                 let defaultVoice = globalVoice;
                 let roleName = "بخش " + (idx + 1);
+                let detectedTone = "";
                 
                 if (isSmart && smartChunkMeta[idx]) {
                     const meta = smartChunkMeta[idx];
                     roleName = meta.role;
+                    detectedTone = meta.tone || "";
                     
                     if (roleName.includes("راوی") || roleName.toLowerCase().includes("narrator")) {
                         defaultVoice = "Kore";
@@ -591,7 +597,7 @@
                         <div class="flex justify-between items-center">
                             ${badgeHtml}
                             <div class="flex gap-1 flex-1 justify-end">
-                                <input type="text" class="chunk-tone-input text-xs bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 rounded-lg py-1 px-2 w-1/3 outline-none focus:border-indigo-500 placeholder:text-gray-400 text-left font-mono" placeholder="لحن (Sad...)" value="${currentMode === 'single' ? '' : ''}">
+                                <input type="text" class="chunk-tone-input text-xs bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 rounded-lg py-1 px-2 w-1/3 outline-none focus:border-indigo-500 placeholder:text-gray-400 text-left font-mono" placeholder="لحن (Sad...)" value="${detectedTone}">
                                 <select class="chunk-voice-select text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200 border-none rounded-lg py-1 px-2 cursor-pointer focus:ring-1 focus:ring-indigo-500 font-bold max-w-[100px]">${optionsHtml}</select>
                             </div>
                         </div>
