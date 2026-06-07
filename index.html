@@ -423,7 +423,7 @@
                         ? `Write a dialogue (script) in Persian about: "${topic}". ${lenPrompt} Format: Each speaker on a new line. Speaker A vs Speaker B. No metadata, just the lines.`
                         : `Write a story narration in Persian about: "${topic}". ${lenPrompt} Break it into paragraphs.`;
 
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`;
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${key}`;
                     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
                     const txt = (await r.json()).candidates[0].content.parts[0].text.trim();
                     
@@ -458,7 +458,7 @@
                     Text:
                     ${text.substring(0, 8000)}`; 
 
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`;
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${key}`;
                     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ 
                         contents: [{ parts: [{ text: prompt }] }],
                         generationConfig: { responseMimeType: "application/json" }
@@ -1125,7 +1125,7 @@
         
         async function getAudioFromAPI(text, voice) {
             return await getWorkingKey(async (key) => {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${key}`;
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=${key}`;
                 const payload = { contents: [{ parts: [{ text: text }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } } };
                 const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
                 if (!res.ok) throw new Error("API Error");
@@ -1142,8 +1142,8 @@
         
         async function getWorkingKey(fn) { if (apiKeys.length === 0) { showToast('کلید API را وارد کنید', true); toggleSettings(); return null; } for (const k of apiKeys) { try { return await fn(k); } catch (e) { continue; } } throw new Error('همه کلیدها خطا دارند.'); }
         async function testVoice(v,b) { const oi=b.innerHTML; b.innerHTML='<i class="fa-solid fa-spinner fa-spin text-[10px]"></i>'; b.disabled=true; try { await getAudioFromAPI("تست", v).then(blob => { new Audio(URL.createObjectURL(blob)).play(); }); } catch (e) { showToast("خطا: " + e.message, true); } finally { b.innerHTML = oi; b.disabled = false; } }
-        async function enhanceTone() { const i=document.getElementById('toneInput'),t=i.value.trim();if(!t){showToast('توصیفی بنویسید',true);return;}const b=document.getElementById('enhanceBtn'),ic=b.querySelector('i'),l=document.getElementById('enhanceLoader');b.disabled=true;ic.classList.add('hidden');l.classList.remove('hidden');try{await getWorkingKey(async(k)=>{const u=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${k}`,r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:`Convert user description to 3-4 English adjectives for a TTS voice style. NO sentences. Input: "${t}"`}]}]})}),x=(await r.json()).candidates[0].content.parts[0].text.trim().replace(/\.$/,'');i.value=x;showToast('بهینه شد ✨');});}catch(e){showToast(e.message,true);}finally{b.disabled=false;ic.classList.remove('hidden');l.classList.add('hidden');} }
-        async function autoDiacritics() { const i=document.getElementById('textInput'),t=i.value.trim();if(!t)return;const b=document.getElementById('diacriticBtn'),l=document.getElementById('diacriticLoader'),ic=b.querySelector('.fa-spell-check');b.disabled=true;ic.classList.add('hidden');l.classList.remove('hidden');try{await getWorkingKey(async(k)=>{const u=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${k}`,r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:`Add minimal diacritics (harakat) to this Persian text. Kasra for Ezafe is priority. Output ONLY text. Input: ${t}`}]}]})});i.value=(await r.json()).candidates[0].content.parts[0].text.trim();showToast('انجام شد');});}catch(e){showToast(e.message,true);}finally{b.disabled=false;ic.classList.remove('hidden');l.classList.add('hidden');} }
+        async function enhanceTone() { const i=document.getElementById('toneInput'),t=i.value.trim();if(!t){showToast('توصیفی بنویسید',true);return;}const b=document.getElementById('enhanceBtn'),ic=b.querySelector('i'),l=document.getElementById('enhanceLoader');b.disabled=true;ic.classList.add('hidden');l.classList.remove('hidden');try{await getWorkingKey(async(k)=>{const u=`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${k}`,r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:`Convert user description to 3-4 English adjectives for a TTS voice style. NO sentences. Input: "${t}"`}]}]})}),x=(await r.json()).candidates[0].content.parts[0].text.trim().replace(/\.$/,'');i.value=x;showToast('بهینه شد ✨');});}catch(e){showToast(e.message,true);}finally{b.disabled=false;ic.classList.remove('hidden');l.classList.add('hidden');} }
+        async function autoDiacritics() { const i=document.getElementById('textInput'),t=i.value.trim();if(!t)return;const b=document.getElementById('diacriticBtn'),l=document.getElementById('diacriticLoader'),ic=b.querySelector('.fa-spell-check');b.disabled=true;ic.classList.add('hidden');l.classList.remove('hidden');try{await getWorkingKey(async(k)=>{const u=`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${k}`,r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:`Add minimal diacritics (harakat) to this Persian text. Kasra for Ezafe is priority. Output ONLY text. Input: ${t}`}]}]})});i.value=(await r.json()).candidates[0].content.parts[0].text.trim();showToast('انجام شد');});}catch(e){showToast(e.message,true);}finally{b.disabled=false;ic.classList.remove('hidden');l.classList.add('hidden');} }
         function delHist(id) { if(confirm('حذف شود؟')){const t=db.transaction(["history"],"readwrite");t.objectStore("history").delete(id);t.oncomplete=loadHistory;} }
         function clearHistory() { if(confirm('همه پاک شود؟')){const t=db.transaction(["history"],"readwrite");t.objectStore("history").clear();t.oncomplete=loadHistory;} }
         function applyTheme(t){localStorage.setItem('gemini_theme',t);document.documentElement.classList.toggle('dark',t==='dark');document.getElementById('themeIcon').className=t==='dark'?'fa-solid fa-sun text-yellow-400':'fa-solid fa-moon';}
